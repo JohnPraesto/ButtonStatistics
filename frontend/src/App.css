@@ -1,0 +1,37 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+body {
+  background-color: #0f172a;
+}
+
+button {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+}
+
+button:hover {
+  box-shadow: 0 0 20px #3b44d1, 0 6px 16px rgba(0,0,0,.2);
+}
+
+button:active {
+  /* transform: translateY(1px);  */
+  filter: brightness(0.95);
+  box-shadow: 0 0 17px #3b44d1, 0 6px 16px rgba(0,0,0,.2);
+}
+
+table{
+  margin: 50px;
+  width: 200px;
+  border-style:solid;
+}
+
+.bar-graph{
+  height: 700px;
+  width: 1000px;
+}
