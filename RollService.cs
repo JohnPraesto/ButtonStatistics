@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace ButtonStatistics
 {
@@ -29,47 +30,41 @@ namespace ButtonStatistics
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 var now = DateTime.UtcNow;
-                var secondToResetIndex = now.Second + 1; // The background service operate on the second before the current second. The increment-now api endpoint only operate in the current second. So they dont operate in the same second at the same time.
-                int minuteToRecieveIndex = now.Minute;
-
-                if (secondToResetIndex == 60) secondToResetIndex = 0;
-                var secondToReset = db.Seconds.Single(s => s.Index == secondToResetIndex);
-                secondToReset.Count = 0;
-
+                var currentSecondIndex = now.Second;
+                var secondToResetIndex = (now.Second + 1) % 60; // The background service operate on the second before the current second. The increment-now api endpoint only operate in the current second. So they dont operate in the same second at the same time.
                 var previousSecondIndex = (now.Second + 59) % 60;
-                var secondToTransfer = db.Seconds.Single(s => s.Index == previousSecondIndex);
+                int currentMinuteIndex = now.Minute;
+                var previousMinuteIndex = (now.Minute + 59) % 60;
+                int currentHourIndex = now.Hour;
+
+                var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
+                var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
+                var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);
+
+                secondToReset.Count = 0;
                 int secondToTransferCount = secondToTransfer.Count;
 
-                if (now.Second == 0)
+                if (currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
-                    int hourToRecieveIndex = now.Hour;
-                    var hourToRecieve = db.Hours.Single(h => h.Index == hourToRecieveIndex);
-
-                    var previousMinuteIndex = (now.Minute + 59) % 60;
-                    var minuteToTransfer = db.Minutes.Single(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
-                    hourToRecieve.Count += minuteToTransfer.Count;
-
-                    var minuteToReset = db.Minutes.Single(m => m.Index == minuteToRecieveIndex); // minuteToReset is the current minute. Its count is reset to 0 just before it recieves the clicks from the current second.
-                    minuteToReset.Count = 0;
+                    var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
+                    currentHour.Count = 0;
+                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
                 }
 
-                var currentMinute = db.Minutes.Single(m => m.Index == minuteToRecieveIndex);
+                if (currentSecondIndex == 0)
+                {
+                    var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
+                    var minuteToTransfer = await db.Minutes.SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
+
+                    currentHour.Count += minuteToTransfer.Count;
+                    currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
+                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
+                }
+
                 currentMinute.Count += secondToTransferCount;
 
-                if (minuteToRecieveIndex == 0 && now.Second == 0)
-                {
-                    int hourToRollIndex = now.Hour;
-                    var hourToRoll = db.Hours.Single(h => h.Index == hourToRollIndex);
-                    hourToRoll.Count = 0;
-                }
-
                 await db.SaveChangesAsync();
-
-                // await _hub.Clients.All.SendAsync("secondRolled", new { completedSecondIndex, minute }, stoppingToken);
-                // should not all clients be updated here?
-                // intead of that updates comes from the increment-now endpoint?
-                // and does that endpoint only update when the endpoint is called?
-
+                await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
             }
         }
     }
