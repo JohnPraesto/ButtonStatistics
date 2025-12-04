@@ -48,7 +48,7 @@ namespace ButtonStatistics
                 {
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     currentHour.Count = 0;
-                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
+                    
                 }
 
                 if (currentSecondIndex == 0)
@@ -58,13 +58,22 @@ namespace ButtonStatistics
 
                     currentHour.Count += minuteToTransfer.Count;
                     currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
-                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
+                    
+                    // Sending update of hour once a minute
+                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
                 }
 
                 currentMinute.Count += secondToTransferCount;
 
                 await db.SaveChangesAsync();
                 await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
+                await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
+            
+                // <500 clients: every-second updates are typically fine.
+                // 500–5,000: consider throttling (5–10s).
+                // 5,000: push once per minute or use a streaming/aggregation layer.
+                // You can also batch minute updates and send only when the value changes (skip sending if count didn’t change).
+                
             }
         }
     }

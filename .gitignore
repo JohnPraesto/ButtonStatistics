@@ -486,3 +486,5 @@ $RECYCLE.BIN/
 # Ignore SQLite database files
 clicks.db
 *.db
+*.db-wal
+*.db-shm
