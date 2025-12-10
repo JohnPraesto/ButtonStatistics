@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=clicks.db"));
+builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlite("Data Source=clicks.db"));
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -30,7 +30,7 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
 
     var click = await db.Seconds.SingleAsync(c => c.Index == index);
 
-    click.Count = click.Count + 1;
+    click.Count++;
 
     await db.SaveChangesAsync();
 

@@ -68,6 +68,7 @@ namespace ButtonStatistics
                     currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
 
                     // Sending update of hour once a minute
+                    await db.SaveChangesAsync();
                     await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
                 }
 
