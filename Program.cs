@@ -39,12 +39,12 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
 });
 
 app.MapGet("/seconds", async (AppDbContext db) =>
-    Results.Ok(await db.Seconds.AsNoTracking().ToListAsync()));
+    Results.Ok(await db.Seconds.AsNoTracking().OrderBy(s => s.Index).ToListAsync()));
 
 app.MapGet("/minutes", async (AppDbContext db) =>
-    Results.Ok(await db.Minutes.AsNoTracking().ToListAsync()));
+    Results.Ok(await db.Minutes.AsNoTracking().OrderBy(m => m.Index).ToListAsync()));
 
 app.MapGet("/hours", async (AppDbContext db) =>
-    Results.Ok(await db.Hours.AsNoTracking().ToListAsync()));
+    Results.Ok(await db.Hours.AsNoTracking().OrderBy(h => h.Index).ToListAsync()));
 
 app.Run();

@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import * as signalR from '@microsoft/signalr'
-import { Bar } from 'react-chartjs-2'
+import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  BarElement,
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 } from 'chart.js'
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 function App() {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -24,7 +26,6 @@ function App() {
       const res = await fetch(`${apiUrl}/seconds`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      data.sort((a, b) => a.index - b.index)
       setSeconds(data)
     } catch (err) {
       console.error('Failed to load clicks:', err)
@@ -36,7 +37,6 @@ function App() {
       const res = await fetch(`${apiUrl}/minutes`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      data.sort((a, b) => a.index - b.index)
       setMinutes(data)
     } catch (err) {
       console.error('Failed to load minutes:', err)
@@ -48,7 +48,6 @@ function App() {
       const res = await fetch(`${apiUrl}/hours`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      data.sort((a, b) => a.index - b.index)
       setHours(data)
     } catch (err) {
       console.error('Failed to load hours:', err)
@@ -132,48 +131,101 @@ function App() {
     }
   }
 
-  const secLabels = seconds.map(s => s.index.toString())
-  const secCounts = seconds.map(s => s.count)
+  const currentUtcSecond = new Date().getUTCSeconds();
+  const currentUtcMinute = new Date().getUTCMinutes();
+  const currentUtcHour = new Date().getUTCHours();
+
+  const secMap = new Map(seconds.map(s => [s.index, s.count]));
+  const rotatedSecondIndices = Array.from({ length: 60 }, (_, k) => (currentUtcSecond + 1 + k) % 60);
+  const secLabels = rotatedSecondIndices.map(i => i.toString());
+  const secCounts = rotatedSecondIndices.map(i => secMap.get(i) ?? 0);
   const secondsData = {
     labels: secLabels,
-    datasets: [{ label: 'Seconds', data: secCounts, backgroundColor: 'rgba(100,108,255,0.6)', borderColor: '#646cff', borderWidth: 1 }]
+    datasets: [{ 
+      label: 'Seconds', 
+      data: secCounts,
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(100,108,255,0.2)' // fallback during initial render
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(100,108,255,0.25)')
+        gradient.addColorStop(1, 'rgba(100,108,255,0)')
+        return gradient
+      },
+      borderColor: '#646cff', 
+      borderWidth: 1,
+      pointRadius: 3, 
+      fill: true }]
   }
   const secondsOptions = {
-    indexAxis: 'x',
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last minute' } },
+    animation: false,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last 60 seconds' } },
     scales: {
-      x: { title: { display: true, text: 'Second' } },
+      x: { title: { display: true, text: 'Second' }, ticks: {display: false}},
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
 
-  const minLabels = minutes.map(m => m.index.toString())
-  const minCounts = minutes.map(m => m.count)
+  const minuteMap = new Map(minutes.map(m => [m.index, m.count]));
+  const rotatedMinuteIndices = Array.from({ length: 60 }, (_, k) => (currentUtcMinute + 1 + k) % 60);
+  const minuteLabels = rotatedMinuteIndices.map(i => i.toString());
+  const minuteCounts = rotatedMinuteIndices.map(i => minuteMap.get(i) ?? 0);
   const minutesData = {
-    labels: minLabels,
-    datasets: [{ label: 'Minutes', data: minCounts, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: '#22c55e', borderWidth: 1 }]
+    labels: minuteLabels,
+    datasets: [{ 
+      label: 'Minutes', 
+      data: minuteCounts,  
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(34,197,94,0.2)' // fallback during initial render
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(34,197,94,0.25)')
+        gradient.addColorStop(1, 'rgba(34,197,94,0)')
+        return gradient
+      },
+      borderColor: '#22c55e', 
+      borderWidth: 1,
+      pointRadius: 3, 
+      fill: true }]
   }
   const minutesOptions = {
-    indexAxis: 'x',
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks / Last Hour' } },
+    animation: false,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last 60 minutes' } },
     scales: {
       x: { title: { display: true, text: 'Minute' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
-
-  const hourLabels = hours.map(m => m.index.toString())
-  const hourCounts = hours.map(m => m.count)
+  const hourMap = new Map(hours.map(h => [h.index, h.count]));
+  const rotatedHourIndices = Array.from({ length: 24 }, (_, k) => (currentUtcHour + 1 + k) % 24);
+  const hourLabels = rotatedHourIndices.map(i => i.toString());
+  const hourCounts = rotatedHourIndices.map(i => hourMap.get(i) ?? 0);
   const hoursData = {
     labels: hourLabels,
-    datasets: [{ label: 'Hours', data: hourCounts, backgroundColor: 'rgba(207, 17, 198, 0.6)', borderColor: '#f137c9ff', borderWidth: 1 }]
+    datasets: [{ 
+      label: 'Hours', 
+      data: hourCounts,
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(207, 17, 198, 0.2)' // fallback during initial render
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(207, 17, 198, 0.25)')
+        gradient.addColorStop(1, 'rgba(207, 17, 198, 0)')
+        return gradient
+      },
+      borderColor: '#f137c9ff', 
+      borderWidth: 1, 
+      pointRadius: 3, 
+      fill: true }]
   }
   const hoursOptions = {
-    indexAxis: 'x',
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks / Last Day' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last 24 hours' } },
     scales: {
       x: { title: { display: true, text: 'Hour' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
@@ -188,15 +240,15 @@ function App() {
       </button>
 
       <div className='bar-graph'>
-        <Bar data={secondsData} options={secondsOptions} />
+        <Line data={secondsData} options={secondsOptions} />
       </div>
 
       <div className='bar-graph'>
-        <Bar data={minutesData} options={minutesOptions} />
+        <Line data={minutesData} options={minutesOptions} />
       </div>
 
       <div className='bar-graph'>
-        <Bar data={hoursData} options={hoursOptions} />
+        <Line data={hoursData} options={hoursOptions} />
       </div>
 
     </>
