@@ -16,6 +16,171 @@ namespace ButtonStatistics.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.22");
 
+            modelBuilder.Entity("ButtonStatistics.Models.Day", b =>
+                {
+                    b.Property<int>("Index")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Index");
+
+                    b.ToTable("Days");
+
+                    b.HasData(
+                        new
+                        {
+                            Index = 0,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 1,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 2,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 3,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 4,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 5,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 6,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 7,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 8,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 9,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 10,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 11,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 12,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 13,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 14,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 15,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 16,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 17,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 18,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 19,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 20,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 21,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 22,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 23,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 24,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 25,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 26,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 27,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 28,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 29,
+                            Count = 0
+                        });
+                });
+
             modelBuilder.Entity("ButtonStatistics.Models.Hour", b =>
                 {
                     b.Property<int>("Index")

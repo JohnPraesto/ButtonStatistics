@@ -32,10 +32,12 @@ namespace ButtonStatistics
                 var now = DateTime.UtcNow;
                 var currentSecondIndex = now.Second;
                 var secondToResetIndex = (now.Second + 1) % 60; // The background service operate on the second before the current second. The increment-now api endpoint only operate in the current second. So they dont operate in the same second at the same time.
-                var previousSecondIndex = (now.Second + 59) % 60;
+                var previousSecondIndex = (now.Second + 59) % 60; // Example: 14 + 59 % 60 = 73 & 60 = 13 (the current second is 14, the previous second was 13)
                 int currentMinuteIndex = now.Minute;
                 var previousMinuteIndex = (now.Minute + 59) % 60;
                 int currentHourIndex = now.Hour;
+                int previousHourIndex = (now.Hour + 23) % 24; // Example 3 + 23 % 24 = 26 % 24 = 2
+                int currentDayIndex = now.Day;
 
                 var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
                 var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
@@ -44,21 +46,27 @@ namespace ButtonStatistics
                 secondToReset.Count = 0;
                 int secondToTransferCount = secondToTransfer.Count;
 
-                if (currentMinuteIndex == 0 && currentSecondIndex == 0)
+                // Här ska currentDay.Count nollställas (once a day)
+
+                if (currentMinuteIndex == 0 && currentSecondIndex == 0) // Once an hour
                 {
+                    var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
+                    var hourToTransfer = await db.Hours.SingleAsync(m => m.Index == previousHourIndex);
+
+                    currentDay.Count += hourToTransfer.Count;
+
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     currentHour.Count = 0;
-                    
                 }
 
-                if (currentSecondIndex == 0)
+                if (currentSecondIndex == 0) // Once a minute
                 {
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     var minuteToTransfer = await db.Minutes.SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
 
                     currentHour.Count += minuteToTransfer.Count;
                     currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
-                    
+
                     // Sending update of hour once a minute
                     await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
                 }
@@ -68,12 +76,12 @@ namespace ButtonStatistics
                 await db.SaveChangesAsync();
                 await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
                 await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
-            
+
                 // <500 clients: every-second updates are typically fine.
                 // 500–5,000: consider throttling (5–10s).
                 // 5,000: push once per minute or use a streaming/aggregation layer.
                 // You can also batch minute updates and send only when the value changes (skip sending if count didn’t change).
-                
+
             }
         }
     }
