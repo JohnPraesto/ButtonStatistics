@@ -17,6 +17,7 @@ function App() {
   const apiUrl = import.meta.env.VITE_API_URL;
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
+  const [hours, setHours] = useState([])
 
   const fetchSeconds = async () => {
     try {
@@ -42,9 +43,22 @@ function App() {
     }
   }
 
+  const fetchHours = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/hours`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      data.sort((a, b) => a.index - b.index)
+      setHours(data)
+    } catch (err) {
+      console.error('Failed to load hours:', err)
+    }
+  }
+
   useEffect(() => {
     fetchSeconds()
     fetchMinutes()
+    fetchHours()
   }, [])
 
   useEffect(() => {
@@ -93,6 +107,18 @@ function App() {
       })
     })
 
+    connection.on('hourUpdated', ({ index, count }) => {
+      setHours(prev => {
+        const i = prev.findIndex(m => m.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return prev
+      })
+    })
+
     connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
@@ -115,7 +141,7 @@ function App() {
   const secondsOptions = {
     indexAxis: 'x',
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks per Second (0–59)' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last minute' } },
     scales: {
       x: { title: { display: true, text: 'Second' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
@@ -131,9 +157,25 @@ function App() {
   const minutesOptions = {
     indexAxis: 'x',
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks per Minute (0–59)' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks / Last Hour' } },
     scales: {
       x: { title: { display: true, text: 'Minute' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
+  const hourLabels = hours.map(m => m.index.toString())
+  const hourCounts = hours.map(m => m.count)
+  const hoursData = {
+    labels: hourLabels,
+    datasets: [{ label: 'Hours', data: hourCounts, backgroundColor: 'rgba(207, 17, 198, 0.6)', borderColor: '#f137c9ff', borderWidth: 1 }]
+  }
+  const hoursOptions = {
+    indexAxis: 'x',
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks / Last Day' } },
+    scales: {
+      x: { title: { display: true, text: 'Hour' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
@@ -151,6 +193,10 @@ function App() {
 
       <div className='bar-graph'>
         <Bar data={minutesData} options={minutesOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Bar data={hoursData} options={hoursOptions} />
       </div>
 
     </>
