@@ -49,6 +49,18 @@ namespace ButtonStatistics.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Months",
+                columns: table => new
+                {
+                    Index = table.Column<int>(type: "INTEGER", nullable: false),
+                    Count = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Months", x => x.Index);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Seconds",
                 columns: table => new
                 {
@@ -196,6 +208,25 @@ namespace ButtonStatistics.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "Months",
+                columns: new[] { "Index", "Count" },
+                values: new object[,]
+                {
+                    { 0, 0 },
+                    { 1, 0 },
+                    { 2, 0 },
+                    { 3, 0 },
+                    { 4, 0 },
+                    { 5, 0 },
+                    { 6, 0 },
+                    { 7, 0 },
+                    { 8, 0 },
+                    { 9, 0 },
+                    { 10, 0 },
+                    { 11, 0 }
+                });
+
+            migrationBuilder.InsertData(
                 table: "Seconds",
                 columns: new[] { "Index", "Count" },
                 values: new object[,]
@@ -274,6 +305,9 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.DropTable(
                 name: "Minutes");
+
+            migrationBuilder.DropTable(
+                name: "Months");
 
             migrationBuilder.DropTable(
                 name: "Seconds");

@@ -20,6 +20,7 @@ function App() {
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
   const [hours, setHours] = useState([])
+  const [days, setDays] = useState([])
 
   const fetchSeconds = async () => {
     try {
@@ -54,10 +55,22 @@ function App() {
     }
   }
 
+  const fetchDays = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/days`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setDays(data)
+    } catch (err) {
+      console.error('Failed to load days:', err)
+    }
+  }
+
   useEffect(() => {
     fetchSeconds()
     fetchMinutes()
     fetchHours()
+    fetchDays()
   }, [])
 
   useEffect(() => {
@@ -108,7 +121,19 @@ function App() {
 
     connection.on('hourUpdated', ({ index, count }) => {
       setHours(prev => {
-        const i = prev.findIndex(m => m.index === index)
+        const i = prev.findIndex(h => h.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return prev
+      })
+    })
+
+    connection.on('dayUpdated', ({ index, count }) => {
+      setDays(prev => {
+        const i = prev.findIndex(d => d.index === index)
         if (i >= 0) {
           const next = [...prev]
           next[i] = { ...next[i], count }
@@ -134,6 +159,7 @@ function App() {
   const currentUtcSecond = new Date().getUTCSeconds();
   const currentUtcMinute = new Date().getUTCMinutes();
   const currentUtcHour = new Date().getUTCHours();
+  const currentUtcDay = new Date().getUTCDate();
 
   const secMap = new Map(seconds.map(s => [s.index, s.count]));
   const rotatedSecondIndices = Array.from({ length: 60 }, (_, k) => (currentUtcSecond + 1 + k) % 60);
@@ -173,7 +199,7 @@ function App() {
   const minuteLabels = rotatedMinuteIndices.map(i => i.toString());
   const minuteCounts = rotatedMinuteIndices.map(i => minuteMap.get(i) ?? 0);
   const minutesData = {
-    labels: minuteLabels,
+    labels: minuteLabels, // vad är labels? pröva kommentera ut
     datasets: [{ 
       label: 'Minutes', 
       data: minuteCounts,  
@@ -200,6 +226,7 @@ function App() {
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
+
   const hourMap = new Map(hours.map(h => [h.index, h.count]));
   const rotatedHourIndices = Array.from({ length: 24 }, (_, k) => (currentUtcHour + 1 + k) % 24);
   const hourLabels = rotatedHourIndices.map(i => i.toString());
@@ -232,6 +259,40 @@ function App() {
     }
   }
 
+
+  const dayMap = new Map(days.map(d => [d.index, d.count]));
+  const dayIndices = Array.from({ length: 30 }, (_, i) => i + 1);
+  const rotatedDayIndices = [...dayIndices.slice(currentUtcDay), ...dayIndices.slice(0, currentUtcDay)];
+  const dayLabels = rotatedDayIndices.map(i => i.toString());
+  const dayCounts = rotatedDayIndices.map(i => dayMap.get(i) ?? 0);
+  const daysData = {
+    labels: dayLabels,
+    datasets: [{ 
+      label: 'Days', 
+      data: dayCounts,
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(207, 71, 17, 0.2)'
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(207, 71, 17, 0.25)')
+        gradient.addColorStop(1, 'rgba(207, 71, 17, 0)')
+        return gradient
+      },
+      borderColor: '#c49c18c4', 
+      borderWidth: 1, 
+      pointRadius: 3, 
+      fill: true }]
+  }
+  const daysOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last 30 days' } },
+    scales: {
+      x: { title: { display: true, text: 'Day' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
   return (
     <>
 
@@ -249,6 +310,10 @@ function App() {
 
       <div className='bar-graph'>
         <Line data={hoursData} options={hoursOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Line data={daysData} options={daysOptions} />
       </div>
 
     </>

@@ -11,6 +11,7 @@ namespace ButtonStatistics
         public DbSet<Minute> Minutes { get; set; }
         public DbSet<Hour> Hours { get; set; }
         public DbSet<Day> Days { get; set; }
+        public DbSet<Month> Months { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -24,6 +25,8 @@ namespace ButtonStatistics
             builder.Entity<Hour>().Property(c => c.Index).ValueGeneratedNever();
             builder.Entity<Day>().HasKey(c => c.Index);
             builder.Entity<Day>().Property(c => c.Index).ValueGeneratedNever();
+            builder.Entity<Month>().HasKey(c => c.Index);
+            builder.Entity<Month>().Property(c => c.Index).ValueGeneratedNever();
 
             var secondSeed = new Second[60];
             for (var i = 0; i < 60; i++)
@@ -65,10 +68,21 @@ namespace ButtonStatistics
                 };
             }
 
+            var monthSeed = new Month[12];
+            for (var i = 0; i < 12; i++)
+            {
+                monthSeed[i] = new Month
+                {
+                    Index = i,
+                    Count = 0
+                };
+            }
+
             builder.Entity<Second>().HasData(secondSeed);
             builder.Entity<Minute>().HasData(minuteSeed);
             builder.Entity<Hour>().HasData(hourSeed);
             builder.Entity<Day>().HasData(daySeed);
+            builder.Entity<Month>().HasData(monthSeed);
         }
 
     }

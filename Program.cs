@@ -47,4 +47,8 @@ app.MapGet("/minutes", async (AppDbContext db) =>
 app.MapGet("/hours", async (AppDbContext db) =>
     Results.Ok(await db.Hours.AsNoTracking().OrderBy(h => h.Index).ToListAsync()));
 
+app.MapGet("/days", async (AppDbContext db) =>
+    Results.Ok(await db.Days.AsNoTracking().OrderBy(h => h.Index).ToListAsync()));
+
+
 app.Run();
