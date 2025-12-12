@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ButtonStatistics.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251210174228_Initial")]
+    [Migration("20251212191810_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -1020,6 +1020,27 @@ namespace ButtonStatistics.Migrations
                         new
                         {
                             Index = 59,
+                            Count = 0
+                        });
+                });
+
+            modelBuilder.Entity("ButtonStatistics.Models.TotalClicks", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TotalClicks");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
                             Count = 0
                         });
                 });

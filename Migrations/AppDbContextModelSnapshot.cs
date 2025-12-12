@@ -1020,6 +1020,27 @@ namespace ButtonStatistics.Migrations
                             Count = 0
                         });
                 });
+
+            modelBuilder.Entity("ButtonStatistics.Models.TotalClicks", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TotalClicks");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Count = 0
+                        });
+                });
 #pragma warning restore 612, 618
         }
     }

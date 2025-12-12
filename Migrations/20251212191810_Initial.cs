@@ -72,6 +72,19 @@ namespace ButtonStatistics.Migrations
                     table.PrimaryKey("PK_Seconds", x => x.Index);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "TotalClicks",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Count = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TotalClicks", x => x.Id);
+                });
+
             migrationBuilder.InsertData(
                 table: "Days",
                 columns: new[] { "Index", "Count" },
@@ -292,6 +305,11 @@ namespace ButtonStatistics.Migrations
                     { 58, 0 },
                     { 59, 0 }
                 });
+
+            migrationBuilder.InsertData(
+                table: "TotalClicks",
+                columns: new[] { "Id", "Count" },
+                values: new object[] { 1, 0 });
         }
 
         /// <inheritdoc />
@@ -311,6 +329,9 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.DropTable(
                 name: "Seconds");
+
+            migrationBuilder.DropTable(
+                name: "TotalClicks");
         }
     }
 }

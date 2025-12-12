@@ -12,6 +12,7 @@ namespace ButtonStatistics
         public DbSet<Hour> Hours { get; set; }
         public DbSet<Day> Days { get; set; }
         public DbSet<Month> Months { get; set; }
+        public DbSet<TotalClicks> TotalClicks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -83,6 +84,7 @@ namespace ButtonStatistics
             builder.Entity<Hour>().HasData(hourSeed);
             builder.Entity<Day>().HasData(daySeed);
             builder.Entity<Month>().HasData(monthSeed);
+            builder.Entity<TotalClicks>().HasData(new TotalClicks { Id = 1, Count = 0 });
         }
 
     }

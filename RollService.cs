@@ -41,6 +41,9 @@ namespace ButtonStatistics
                 int previousDayIndex = now.AddDays(-1).Day;
                 int currentMonthIndex = now.Month;
 
+                // Nästa charts som ska byggas är months of the last year (last 12 months)
+                // och sen last 10 years
+
                 var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
                 var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
                 var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);

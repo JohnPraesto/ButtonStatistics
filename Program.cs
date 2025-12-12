@@ -29,12 +29,15 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     var index = DateTime.UtcNow.Second;
 
     var click = await db.Seconds.SingleAsync(c => c.Index == index);
-
     click.Count++;
+
+    var total = await db.TotalClicks.SingleAsync(t => t.Id == 1);
+    total.Count++;
 
     await db.SaveChangesAsync();
 
     await hub.Clients.All.SendAsync("clickUpdated", new { click.Index, click.Count });
+    await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
     return Results.Ok();
 });
 
@@ -50,5 +53,10 @@ app.MapGet("/hours", async (AppDbContext db) =>
 app.MapGet("/days", async (AppDbContext db) =>
     Results.Ok(await db.Days.AsNoTracking().OrderBy(h => h.Index).ToListAsync()));
 
+app.MapGet("/total-clicks", async (AppDbContext db) =>
+{
+    var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);
+    return Results.Ok(new { count = total.Count });
+});
 
 app.Run();

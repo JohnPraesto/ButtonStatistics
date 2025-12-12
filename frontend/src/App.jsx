@@ -21,6 +21,16 @@ function App() {
   const [minutes, setMinutes] = useState([])
   const [hours, setHours] = useState([])
   const [days, setDays] = useState([])
+  const [total, setTotal] = useState(0)
+
+  const [myClicks, setMyClicks] = useState(() => {
+    const saved = localStorage.getItem('myClicks')
+    return saved ? parseInt(saved, 10) || 0 : 0
+  })
+
+  useEffect(() => {
+    localStorage.setItem('myClicks', String(myClicks))
+  }, [myClicks])
 
   const fetchSeconds = async () => {
     try {
@@ -66,11 +76,23 @@ function App() {
     }
   }
 
+  const fetchTotal = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/total-clicks`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setTotal(data.count ?? 0)
+    } catch (err) {
+      console.error('Failed to load total:', err)
+    }
+  }
+
   useEffect(() => {
     fetchSeconds()
     fetchMinutes()
     fetchHours()
     fetchDays()
+    fetchTotal()
   }, [])
 
   useEffect(() => {
@@ -81,6 +103,8 @@ function App() {
       .withUrl(`${apiUrl}/hubs/clicks`, {withCredentials: false})
       .withAutomaticReconnect()
       .build()
+
+    connection.on('totalUpdated', ({ count }) => {setTotal(count)})
 
     connection.on('clickUpdated', (updated) => {
       setSeconds(prev => {
@@ -143,7 +167,7 @@ function App() {
       })
     })
 
-    connection.start().catch(err => console.error('SignalR start failed:', err))
+  connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
 
@@ -151,6 +175,7 @@ function App() {
     try {
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { method: 'POST' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setMyClicks(c => c + 1)
     } catch (err) {
       console.error('Failed to increment:', err)
     }
@@ -295,6 +320,9 @@ function App() {
 
   return (
     <>
+
+      <h2>Total clicks: {total}</h2>
+      <p>You have clicked the button {myClicks} times.</p>
 
       <button onClick={handleClick}>
         click
