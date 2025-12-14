@@ -12,6 +12,7 @@ namespace ButtonStatistics
         public DbSet<Hour> Hours { get; set; }
         public DbSet<Day> Days { get; set; }
         public DbSet<Month> Months { get; set; }
+        public DbSet<Year> Years { get; set; }
         public DbSet<TotalClicks> TotalClicks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -28,6 +29,8 @@ namespace ButtonStatistics
             builder.Entity<Day>().Property(c => c.Index).ValueGeneratedNever();
             builder.Entity<Month>().HasKey(c => c.Index);
             builder.Entity<Month>().Property(c => c.Index).ValueGeneratedNever();
+            builder.Entity<Year>().HasKey(c => c.Index);
+            builder.Entity<Year>().Property(c => c.Index).ValueGeneratedNever();
 
             var secondSeed = new Second[60];
             for (var i = 0; i < 60; i++)
@@ -79,11 +82,22 @@ namespace ButtonStatistics
                 };
             }
 
+            var yearSeed = new Year[10];
+            for (var i = 0; i < 10; i++)
+            {
+                yearSeed[i] = new Year
+                {
+                    Index = i,
+                    Count = 0
+                };
+            }
+
             builder.Entity<Second>().HasData(secondSeed);
             builder.Entity<Minute>().HasData(minuteSeed);
             builder.Entity<Hour>().HasData(hourSeed);
             builder.Entity<Day>().HasData(daySeed);
             builder.Entity<Month>().HasData(monthSeed);
+            builder.Entity<Year>().HasData(yearSeed);
             builder.Entity<TotalClicks>().HasData(new TotalClicks { Id = 1, Count = 0 });
         }
 

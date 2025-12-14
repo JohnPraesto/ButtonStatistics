@@ -85,6 +85,18 @@ namespace ButtonStatistics.Migrations
                     table.PrimaryKey("PK_TotalClicks", x => x.Id);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "Years",
+                columns: table => new
+                {
+                    Index = table.Column<int>(type: "INTEGER", nullable: false),
+                    Count = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Years", x => x.Index);
+                });
+
             migrationBuilder.InsertData(
                 table: "Days",
                 columns: new[] { "Index", "Count" },
@@ -310,6 +322,23 @@ namespace ButtonStatistics.Migrations
                 table: "TotalClicks",
                 columns: new[] { "Id", "Count" },
                 values: new object[] { 1, 0 });
+
+            migrationBuilder.InsertData(
+                table: "Years",
+                columns: new[] { "Index", "Count" },
+                values: new object[,]
+                {
+                    { 0, 0 },
+                    { 1, 0 },
+                    { 2, 0 },
+                    { 3, 0 },
+                    { 4, 0 },
+                    { 5, 0 },
+                    { 6, 0 },
+                    { 7, 0 },
+                    { 8, 0 },
+                    { 9, 0 }
+                });
         }
 
         /// <inheritdoc />
@@ -332,6 +361,9 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.DropTable(
                 name: "TotalClicks");
+
+            migrationBuilder.DropTable(
+                name: "Years");
         }
     }
 }

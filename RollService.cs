@@ -40,6 +40,8 @@ namespace ButtonStatistics
                 int currentDayIndex = now.Day;
                 int previousDayIndex = now.AddDays(-1).Day;
                 int currentMonthIndex = now.Month;
+                int previousMonthIndex = now.AddMonths(-1).Month;
+                int currentYearIndex = now.Year;
 
                 // Nästa charts som ska byggas är months of the last year (last 12 months)
                 // och sen last 10 years
@@ -48,10 +50,24 @@ namespace ButtonStatistics
                 var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
                 var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);
 
+
                 secondToReset.Count = 0;
                 int secondToTransferCount = secondToTransfer.Count;
 
-                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0) // Once a day
+                // Once a month
+                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                {
+                    var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
+                    var monthToTransfer = await db.Months.SingleAsync(m => m.Index == previousMonthIndex);
+
+                    currentYear.Count += monthToTransfer.Count;
+
+                    var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
+                    currentMonth.Count = 0;
+                }
+
+                // Once a day
+                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
                     var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex);
@@ -62,13 +78,15 @@ namespace ButtonStatistics
                     currentDay.Count = 0;
                 }
 
-                if (currentMinuteIndex == 0 && currentSecondIndex == 0) // Once an hour
+                // Once an hour
+                if (currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     currentHour.Count = 0;
                 }
 
-                if (currentSecondIndex == 0) // Once a minute
+                // Once a minute
+                if (currentSecondIndex == 0)
                 {
                     var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
@@ -81,6 +99,7 @@ namespace ButtonStatistics
 
                     await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
                     await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
+
                 }
 
                 currentMinute.Count += secondToTransferCount;
@@ -88,6 +107,7 @@ namespace ButtonStatistics
                 await db.SaveChangesAsync();
                 await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
                 await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
+
 
                 // <500 clients: every-second updates are typically fine.
                 // 500–5,000: consider throttling (5–10s).
