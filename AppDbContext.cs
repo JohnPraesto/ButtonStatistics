@@ -62,12 +62,12 @@ namespace ButtonStatistics
                 };
             }
 
-            var daySeed = new Day[30];
-            for (var i = 0; i < 30; i++)
+            var daySeed = new Day[31];
+            for (var i = 0; i < 31; i++)
             {
                 daySeed[i] = new Day
                 {
-                    Index = i,
+                    Index = i + 1, // +1 to make day index start at 1 just as DateTime days starts at 1.
                     Count = 0
                 };
             }
@@ -77,7 +77,7 @@ namespace ButtonStatistics
             {
                 monthSeed[i] = new Month
                 {
-                    Index = i,
+                    Index = i + 1, // Same +1 here as with days
                     Count = 0
                 };
             }

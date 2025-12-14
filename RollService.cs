@@ -37,25 +37,23 @@ namespace ButtonStatistics
                 var previousMinuteIndex = (now.Minute + 59) % 60;
                 int currentHourIndex = now.Hour;
                 int previousHourIndex = (now.Hour + 23) % 24; // Example 3 + 23 % 24 = 26 % 24 = 2
-                int currentDayIndex = now.Day;
+                int currentDayIndex = now.Day; // Days start at 1 (not 0, like seconds and minutes)
                 int previousDayIndex = now.AddDays(-1).Day;
-                int currentMonthIndex = now.Month;
+                int currentMonthIndex = now.Month; // Months also start at 1
                 int previousMonthIndex = now.AddMonths(-1).Month;
                 int currentYearIndex = now.Year;
 
-                // Nästa charts som ska byggas är months of the last year (last 12 months)
-                // och sen last 10 years
+                // Nästa charts som ska byggas är last 10 years
 
                 var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
                 var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
                 var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);
 
-
                 secondToReset.Count = 0;
                 int secondToTransferCount = secondToTransfer.Count;
 
                 // Once a month
-                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                if (currentDayIndex == 0 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
                     var monthToTransfer = await db.Months.SingleAsync(m => m.Index == previousMonthIndex);
@@ -67,41 +65,45 @@ namespace ButtonStatistics
                 }
 
                 // Once a day
-                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                if (currentHourIndex == 1 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
-                    var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
+                    var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex);
                     var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex);
 
                     currentMonth.Count += dayToTransfer.Count;
 
-                    var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
+                    var currentDay = await db.Days.SingleAsync(d => d.Index == currentDayIndex);
                     currentDay.Count = 0;
+
+                    await _hub.Clients.All.SendAsync("monthUpdated", new { index = currentMonthIndex, count = currentMonth!.Count }, stoppingToken);
                 }
 
                 // Once an hour
                 if (currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
+                    var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
+                    var hourToTransfer = await db.Hours.SingleAsync(h => h.Index == previousHourIndex);
+
+                    currentDay.Count += hourToTransfer.Count;
+
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     currentHour.Count = 0;
+
+                    await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
                 }
 
                 // Once a minute
                 if (currentSecondIndex == 0)
                 {
-                    var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     var minuteToTransfer = await db.Minutes.SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
 
                     currentHour.Count += minuteToTransfer.Count;
-                    currentDay.Count += minuteToTransfer.Count;
 
                     currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
 
-                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
-                    await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
-
+                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken); // bort
                 }
-
                 currentMinute.Count += secondToTransferCount;
 
                 await db.SaveChangesAsync();

@@ -21,6 +21,7 @@ function App() {
   const [minutes, setMinutes] = useState([])
   const [hours, setHours] = useState([])
   const [days, setDays] = useState([])
+  const [months, setMonths] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
@@ -76,6 +77,17 @@ function App() {
     }
   }
 
+  const fetchMonths = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/months`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setMonths(data)
+    } catch (err) {
+      console.error('Failed to load months:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -92,6 +104,7 @@ function App() {
     fetchMinutes()
     fetchHours()
     fetchDays()
+    fetchMonths()
     fetchTotal()
   }, [])
 
@@ -167,6 +180,18 @@ function App() {
       })
     })
 
+    connection.on('monthUpdated', ({ index, count }) => {
+      setMonths(prev => {
+        const i = prev.findIndex(d => d.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return prev
+      })
+    })
+
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
@@ -185,6 +210,7 @@ function App() {
   const currentUtcMinute = new Date().getUTCMinutes();
   const currentUtcHour = new Date().getUTCHours();
   const currentUtcDay = new Date().getUTCDate();
+  const currentUtcMonth = new Date().getUTCMonth();
 
   const secMap = new Map(seconds.map(s => [s.index, s.count]));
   const rotatedSecondIndices = Array.from({ length: 60 }, (_, k) => (currentUtcSecond + 1 + k) % 60);
@@ -212,7 +238,7 @@ function App() {
   const secondsOptions = {
     responsive: true,
     animation: false,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last 60 seconds' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last minute' } },
     scales: {
       x: { title: { display: true, text: 'Second' }, ticks: {display: false}},
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
@@ -224,14 +250,14 @@ function App() {
   const minuteLabels = rotatedMinuteIndices.map(i => i.toString());
   const minuteCounts = rotatedMinuteIndices.map(i => minuteMap.get(i) ?? 0);
   const minutesData = {
-    labels: minuteLabels, // vad är labels? pröva kommentera ut
+    labels: minuteLabels,
     datasets: [{ 
       label: 'Minutes', 
       data: minuteCounts,  
       backgroundColor: (ctx) => {
         const chart = ctx.chart
         const { ctx: c, chartArea } = chart
-        if (!chartArea) return 'rgba(34,197,94,0.2)' // fallback during initial render
+        if (!chartArea) return 'rgba(34,197,94,0.2)'
         const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
         gradient.addColorStop(0, 'rgba(34,197,94,0.25)')
         gradient.addColorStop(1, 'rgba(34,197,94,0)')
@@ -245,7 +271,7 @@ function App() {
   const minutesOptions = {
     responsive: true,
     animation: false,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Last 60 minutes' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last hour' } },
     scales: {
       x: { title: { display: true, text: 'Minute' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
@@ -277,7 +303,7 @@ function App() {
   }
   const hoursOptions = {
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Last 24 hours' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last day' } },
     scales: {
       x: { title: { display: true, text: 'Hour' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
@@ -311,9 +337,51 @@ function App() {
   }
   const daysOptions = {
     responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Last 30 days' } },
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last month' } },
     scales: {
       x: { title: { display: true, text: 'Day' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
+
+  const monthMap = new Map(months.map(m => [m.index, m.count]));
+  const monthIndices = Array.from({ length: 12 }, (_, i) => i + 1);
+  const rotateMonthsBy = (n) => {
+    const k = n % monthIndices.length;
+    return [...monthIndices.slice(k), ...monthIndices.slice(0, k)];
+  }
+  const rotatedMonthIndices = rotateMonthsBy(currentUtcMonth + 1);
+    const monthName = (idx) => {
+    return new Intl.DateTimeFormat(undefined, { month: 'short' })
+      .format(new Date(Date.UTC(2000, idx - 1, 1)));
+  };
+  const monthLabels = rotatedMonthIndices.map(i => monthName(i));
+  const monthCounts = rotatedMonthIndices.map(i => monthMap.get(i) ?? 0);
+  const monthsData = {
+    labels: monthLabels,
+    datasets: [{ 
+      label: 'Months', 
+      data: monthCounts,
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(206, 206, 206, 0.2)'
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(206, 206, 206, 0.25)')
+        gradient.addColorStop(1, 'rgba(206, 206, 206, 0)')
+        return gradient
+      },
+      borderColor: '#969696c4', 
+      borderWidth: 1, 
+      pointRadius: 3, 
+      fill: true }]
+  }
+  const monthsOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last year' } },
+    scales: {
+      x: { title: { display: true, text: 'Month' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
@@ -342,6 +410,10 @@ function App() {
 
       <div className='bar-graph'>
         <Line data={daysData} options={daysOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Line data={monthsData} options={monthsOptions} />
       </div>
 
     </>
