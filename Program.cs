@@ -1,4 +1,5 @@
 using ButtonStatistics;
+using ButtonStatistics.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,7 @@ app.UseCors();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
-app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHub> hub) =>
+app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHub> hub, IncrementNowRequest req) =>
 {
     var index = DateTime.UtcNow.Second;
 
@@ -34,10 +35,14 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     var total = await db.TotalClicks.SingleAsync(t => t.Id == 1);
     total.Count++;
 
+    var localHour = await db.LocalHours.SingleAsync(h => h.Index == req.LocalHour);
+    localHour.Count++;
+
     await db.SaveChangesAsync();
 
     await hub.Clients.All.SendAsync("clickUpdated", new { click.Index, click.Count });
     await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
+    await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHour.Count });
     return Results.Ok();
 });
 
@@ -58,6 +63,9 @@ app.MapGet("/months", async (AppDbContext db) =>
 
 app.MapGet("/years", async (AppDbContext db) =>
     Results.Ok(await db.Years.AsNoTracking().OrderBy(y => y.Index).ToListAsync()));
+
+app.MapGet("/local-hours", async (AppDbContext db) =>
+    Results.Ok(await db.LocalHours.AsNoTracking().OrderBy(lh => lh.Index).ToListAsync()));
 
 app.MapGet("/total-clicks", async (AppDbContext db) =>
 {

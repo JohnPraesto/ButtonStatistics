@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import * as signalR from '@microsoft/signalr'
-import { Line } from 'react-chartjs-2'
+import { Line, Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement, 
   Title,
   Tooltip,
   Legend,
   Filler
 } from 'chart.js'
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
 
 function App() {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -23,6 +24,7 @@ function App() {
   const [days, setDays] = useState([])
   const [months, setMonths] = useState([])
   const [years, setYears] = useState([])
+  const [localHours, setLocalHours] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
@@ -100,6 +102,17 @@ function App() {
     }
   }
 
+  const fetchLocalHours = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/local-hours`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setLocalHours(data)
+    } catch (err) {
+      console.error('Failed to load local hours:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -118,6 +131,7 @@ function App() {
     fetchDays()
     fetchMonths()
     fetchYears()
+    fetchLocalHours()
     fetchTotal()
   }, [])
 
@@ -217,13 +231,29 @@ function App() {
       })
     })
 
+    connection.on('localHourUpdated', ({ index, count }) => {
+      setLocalHours(prev => {
+        const i = prev.findIndex(h => h.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+      })
+    })
+
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
 
   const handleClick = async () => {
     try {
-      const res = await fetch(`${apiUrl}/clicks/increment-now`, { method: 'POST' })
+      const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localHour: new Date().getHours() }) 
+      })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setMyClicks(c => c + 1)
     } catch (err) {
@@ -445,6 +475,28 @@ function App() {
     }
   }
 
+  const localHourMap = new Map(localHours.map(h => [h.index, h.count]));
+  const localHourLabels = Array.from({ length: 24 }, (_, i) => i.toString());
+  const localHourCounts = localHourLabels.map(i => localHourMap.get(Number(i)) ?? 0);
+  const localHoursData = {
+    labels: localHourLabels,
+    datasets: [{
+      label: 'Local hour of day',
+      data: localHourCounts,
+      backgroundColor: 'rgba(14,165,233,0.35)',
+      borderColor: '#0ea5e9',
+      borderWidth: 1
+    }]
+  }
+  const localHoursOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local hour (0–23)' } },
+    scales: {
+      x: { title: { display: true, text: 'Hour' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
   return (
     <>
 
@@ -477,6 +529,10 @@ function App() {
 
       <div className='bar-graph'>
         <Line data={yearsData} options={yearsOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Bar data={localHoursData} options={localHoursOptions} />
       </div>
 
     </>

@@ -37,6 +37,18 @@ namespace ButtonStatistics.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "LocalHours",
+                columns: table => new
+                {
+                    Index = table.Column<int>(type: "INTEGER", nullable: false),
+                    Count = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LocalHours", x => x.Index);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Minutes",
                 columns: table => new
                 {
@@ -137,6 +149,37 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.InsertData(
                 table: "Hours",
+                columns: new[] { "Index", "Count" },
+                values: new object[,]
+                {
+                    { 0, 0 },
+                    { 1, 0 },
+                    { 2, 0 },
+                    { 3, 0 },
+                    { 4, 0 },
+                    { 5, 0 },
+                    { 6, 0 },
+                    { 7, 0 },
+                    { 8, 0 },
+                    { 9, 0 },
+                    { 10, 0 },
+                    { 11, 0 },
+                    { 12, 0 },
+                    { 13, 0 },
+                    { 14, 0 },
+                    { 15, 0 },
+                    { 16, 0 },
+                    { 17, 0 },
+                    { 18, 0 },
+                    { 19, 0 },
+                    { 20, 0 },
+                    { 21, 0 },
+                    { 22, 0 },
+                    { 23, 0 }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LocalHours",
                 columns: new[] { "Index", "Count" },
                 values: new object[,]
                 {
@@ -390,6 +433,9 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.DropTable(
                 name: "Hours");
+
+            migrationBuilder.DropTable(
+                name: "LocalHours");
 
             migrationBuilder.DropTable(
                 name: "Minutes");
