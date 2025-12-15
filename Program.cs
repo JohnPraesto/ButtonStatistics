@@ -56,6 +56,9 @@ app.MapGet("/days", async (AppDbContext db) =>
 app.MapGet("/months", async (AppDbContext db) =>
     Results.Ok(await db.Months.AsNoTracking().OrderBy(m => m.Index).ToListAsync()));
 
+app.MapGet("/years", async (AppDbContext db) =>
+    Results.Ok(await db.Years.AsNoTracking().OrderBy(y => y.Index).ToListAsync()));
+
 app.MapGet("/total-clicks", async (AppDbContext db) =>
 {
     var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);

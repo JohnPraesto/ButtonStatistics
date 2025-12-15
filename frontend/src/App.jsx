@@ -22,6 +22,7 @@ function App() {
   const [hours, setHours] = useState([])
   const [days, setDays] = useState([])
   const [months, setMonths] = useState([])
+  const [years, setYears] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
@@ -88,6 +89,17 @@ function App() {
     }
   }
 
+  const fetchYears = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/years`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setYears(data)
+    } catch (err) {
+      console.error('Failed to load years:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -105,6 +117,7 @@ function App() {
     fetchHours()
     fetchDays()
     fetchMonths()
+    fetchYears()
     fetchTotal()
   }, [])
 
@@ -182,7 +195,19 @@ function App() {
 
     connection.on('monthUpdated', ({ index, count }) => {
       setMonths(prev => {
-        const i = prev.findIndex(d => d.index === index)
+        const i = prev.findIndex(m => m.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return prev
+      })
+    })
+    
+    connection.on('yearUpdated', ({ index, count }) => {
+      setYears(prev => {
+        const i = prev.findIndex(y => y.index === index)
         if (i >= 0) {
           const next = [...prev]
           next[i] = { ...next[i], count }
@@ -211,6 +236,7 @@ function App() {
   const currentUtcHour = new Date().getUTCHours();
   const currentUtcDay = new Date().getUTCDate();
   const currentUtcMonth = new Date().getUTCMonth();
+  const currentUtcYear = new Date().getUTCFullYear();
 
   const secMap = new Map(seconds.map(s => [s.index, s.count]));
   const rotatedSecondIndices = Array.from({ length: 60 }, (_, k) => (currentUtcSecond + 1 + k) % 60);
@@ -310,7 +336,6 @@ function App() {
     }
   }
 
-
   const dayMap = new Map(days.map(d => [d.index, d.count]));
   const dayIndices = Array.from({ length: 30 }, (_, i) => i + 1);
   const rotatedDayIndices = [...dayIndices.slice(currentUtcDay), ...dayIndices.slice(0, currentUtcDay)];
@@ -386,6 +411,40 @@ function App() {
     }
   }
 
+  const yearMap = new Map(years.map(y => [y.index, y.count])); // map är typ en dictionary över de objecten du fått in från fetchen. Index blir key, och Count blir value.
+  const availableYears = [...yearMap.keys()].sort((a, b) => a - b);
+  const lastTenYearsCandidate = availableYears.filter(y => y <= currentUtcYear);
+  const lastTenYears = (lastTenYearsCandidate.length >= 10 ? lastTenYearsCandidate.slice(-10) : availableYears.slice(-10));
+  const yearLabels = lastTenYears.map(y => y.toString());
+  const yearCounts = lastTenYears.map(y => yearMap.get(y) ?? 0);
+  const yearsData = {
+    labels: yearLabels,
+    datasets: [{ 
+      label: 'Year', 
+      data: yearCounts,
+      backgroundColor: (ctx) => {
+        const chart = ctx.chart
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(167, 84, 17, 0.2)'
+        const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(167, 84, 17, 0.25)')
+        gradient.addColorStop(1, 'rgba(167, 84, 17, 0)')
+        return gradient
+      },
+      borderColor: '#8f4e04ff', 
+      borderWidth: 1, 
+      pointRadius: 3, 
+      fill: true }]
+  }
+  const yearsOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Last 10 years' } },
+    scales: {
+      x: { title: { display: true, text: 'Year' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
   return (
     <>
 
@@ -414,6 +473,10 @@ function App() {
 
       <div className='bar-graph'>
         <Line data={monthsData} options={monthsOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Line data={yearsData} options={yearsOptions} />
       </div>
 
     </>

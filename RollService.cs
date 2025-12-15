@@ -42,8 +42,10 @@ namespace ButtonStatistics
                 int currentMonthIndex = now.Month; // Months also start at 1
                 int previousMonthIndex = now.AddMonths(-1).Month;
                 int currentYearIndex = now.Year;
-
-                // Nästa charts som ska byggas är last 10 years
+                // These are set every second. High load every second then?
+                // Is it not better to set the dates within each roll over?
+                // You need only know what year it is if you're gonna use the year index...
+                // ... which is once a month.
 
                 var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
                 var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
@@ -53,7 +55,7 @@ namespace ButtonStatistics
                 int secondToTransferCount = secondToTransfer.Count;
 
                 // Once a month
-                if (currentDayIndex == 0 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
                     var monthToTransfer = await db.Months.SingleAsync(m => m.Index == previousMonthIndex);
@@ -62,10 +64,12 @@ namespace ButtonStatistics
 
                     var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
                     currentMonth.Count = 0;
+
+                    await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex, count = currentYear!.Count }, stoppingToken);
                 }
 
                 // Once a day
-                if (currentHourIndex == 1 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex);
                     var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex);
@@ -104,6 +108,7 @@ namespace ButtonStatistics
 
                     await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken); // bort
                 }
+
                 currentMinute.Count += secondToTransferCount;
 
                 await db.SaveChangesAsync();

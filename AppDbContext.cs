@@ -82,12 +82,12 @@ namespace ButtonStatistics
                 };
             }
 
-            var yearSeed = new Year[10];
-            for (var i = 0; i < 10; i++)
+            var yearSeed = new Year[50];
+            for (var i = 0; i < 50; i++)
             {
                 yearSeed[i] = new Year
                 {
-                    Index = i,
+                    Index = i + 2015, // Creating years with index numbers 2015 to 2065
                     Count = 0
                 };
             }
