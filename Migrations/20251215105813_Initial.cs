@@ -49,6 +49,18 @@ namespace ButtonStatistics.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "LocalWeekdays",
+                columns: table => new
+                {
+                    Index = table.Column<int>(type: "INTEGER", nullable: false),
+                    Count = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LocalWeekdays", x => x.Index);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Minutes",
                 columns: table => new
                 {
@@ -207,6 +219,20 @@ namespace ButtonStatistics.Migrations
                     { 21, 0 },
                     { 22, 0 },
                     { 23, 0 }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LocalWeekdays",
+                columns: new[] { "Index", "Count" },
+                values: new object[,]
+                {
+                    { 0, 0 },
+                    { 1, 0 },
+                    { 2, 0 },
+                    { 3, 0 },
+                    { 4, 0 },
+                    { 5, 0 },
+                    { 6, 0 }
                 });
 
             migrationBuilder.InsertData(
@@ -436,6 +462,9 @@ namespace ButtonStatistics.Migrations
 
             migrationBuilder.DropTable(
                 name: "LocalHours");
+
+            migrationBuilder.DropTable(
+                name: "LocalWeekdays");
 
             migrationBuilder.DropTable(
                 name: "Minutes");

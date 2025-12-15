@@ -14,6 +14,7 @@ namespace ButtonStatistics
         public DbSet<Month> Months { get; set; }
         public DbSet<Year> Years { get; set; }
         public DbSet<LocalHour> LocalHours { get; set; }
+        public DbSet<LocalWeekday> LocalWeekdays { get; set; }
         public DbSet<TotalClicks> TotalClicks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -34,6 +35,8 @@ namespace ButtonStatistics
             builder.Entity<Year>().Property(c => c.Index).ValueGeneratedNever();
             builder.Entity<LocalHour>().HasKey(c => c.Index);
             builder.Entity<LocalHour>().Property(c => c.Index).ValueGeneratedNever();
+            builder.Entity<LocalWeekday>().HasKey(c => c.Index);
+            builder.Entity<LocalWeekday>().Property(c => c.Index).ValueGeneratedNever();
 
             var secondSeed = new Second[60];
             for (var i = 0; i < 60; i++)
@@ -105,6 +108,16 @@ namespace ButtonStatistics
                 };
             }
 
+            var localWeekdaySeed = new LocalWeekday[7];
+            for (var i = 0; i < 7; i++)
+            {
+                localWeekdaySeed[i] = new LocalWeekday
+                {
+                    Index = i, // 0 = Sunday ... 6 = Saturday (matches JS getDay())
+                    Count = 0
+                };
+            }
+
             builder.Entity<Second>().HasData(secondSeed);
             builder.Entity<Minute>().HasData(minuteSeed);
             builder.Entity<Hour>().HasData(hourSeed);
@@ -112,6 +125,7 @@ namespace ButtonStatistics
             builder.Entity<Month>().HasData(monthSeed);
             builder.Entity<Year>().HasData(yearSeed);
             builder.Entity<LocalHour>().HasData(localHourSeed);
+            builder.Entity<LocalWeekday>().HasData(localWeekdaySeed);
             builder.Entity<TotalClicks>().HasData(new TotalClicks { Id = 1, Count = 0 });
         }
 

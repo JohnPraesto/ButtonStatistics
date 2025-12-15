@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ButtonStatistics.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251215093245_Initial")]
+    [Migration("20251215105813_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -455,6 +455,56 @@ namespace ButtonStatistics.Migrations
                         new
                         {
                             Index = 23,
+                            Count = 0
+                        });
+                });
+
+            modelBuilder.Entity("ButtonStatistics.Models.LocalWeekday", b =>
+                {
+                    b.Property<int>("Index")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Index");
+
+                    b.ToTable("LocalWeekdays");
+
+                    b.HasData(
+                        new
+                        {
+                            Index = 0,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 1,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 2,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 3,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 4,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 5,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 6,
                             Count = 0
                         });
                 });

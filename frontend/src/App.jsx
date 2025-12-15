@@ -25,6 +25,7 @@ function App() {
   const [months, setMonths] = useState([])
   const [years, setYears] = useState([])
   const [localHours, setLocalHours] = useState([])
+  const [localWeekdays, setLocalWeekdays] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
@@ -113,6 +114,17 @@ function App() {
     }
   }
 
+  const fetchLocalWeekdays = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/local-weekdays`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setLocalWeekdays(data)
+    } catch (err) {
+      console.error('Failed to load local weekdays:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -132,6 +144,7 @@ function App() {
     fetchMonths()
     fetchYears()
     fetchLocalHours()
+    fetchLocalWeekdays()
     fetchTotal()
   }, [])
 
@@ -243,6 +256,18 @@ function App() {
       })
     })
 
+    connection.on('localWeekdayUpdated', ({ index, count }) => {
+      setLocalWeekdays(prev => {
+        const i = prev.findIndex(w => w.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+      })
+    })
+
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
@@ -252,7 +277,7 @@ function App() {
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ localHour: new Date().getHours() }) 
+        body: JSON.stringify({ localHour: new Date().getHours(), localWeekday: new Date().getDay() }) 
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setMyClicks(c => c + 1)
@@ -497,6 +522,30 @@ function App() {
     }
   }
 
+  // Local Weekday histogram (0=Sun .. 6=Sat)
+  const localWeekdayMap = new Map(localWeekdays.map(w => [w.index, w.count]))
+  const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const weekdayIndices = [0,1,2,3,4,5,6]
+  const localWeekdayCounts = weekdayIndices.map(i => localWeekdayMap.get(i) ?? 0)
+  const localWeekdaysData = {
+    labels: weekdayLabels,
+    datasets: [{
+      label: 'Clicks by weekday (local)',
+      data: localWeekdayCounts,
+      backgroundColor: 'rgba(99,102,241,0.35)',
+      borderColor: '#6366f1',
+      borderWidth: 1
+    }]
+  }
+  const localWeekdaysOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by weekday (local)' } },
+    scales: {
+      x: { title: { display: true, text: 'Weekday' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
   return (
     <>
 
@@ -533,6 +582,10 @@ function App() {
 
       <div className='bar-graph'>
         <Bar data={localHoursData} options={localHoursOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Bar data={localWeekdaysData} options={localWeekdaysOptions} />
       </div>
 
     </>
