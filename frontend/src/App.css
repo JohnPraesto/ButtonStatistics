@@ -31,7 +31,11 @@ table{
   border-style:solid;
 }
 
-.bar-graph{
+.chart{
   height: 700px;
   width: 1000px;
+}
+
+.click-text{
+  font-size: 30px;
 }

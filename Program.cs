@@ -66,6 +66,7 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     // if (req.LocalMonth is int lmb)
     //     await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lmb, count = localMonthCount });
 
+    // This is one batch of signals. Instead of sending five.
     await hub.Clients.All.SendAsync("statsUpdated", new
     {
         second = new { index = secondIndex, count = secondCount },
