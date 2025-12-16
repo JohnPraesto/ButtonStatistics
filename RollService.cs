@@ -48,7 +48,7 @@ namespace ButtonStatistics
                 // ... which is once a month.
 
                 var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
-                var secondToTransfer = await db.Seconds.SingleAsync(s => s.Index == previousSecondIndex);
+                var secondToTransfer = await db.Seconds.AsNoTracking().SingleAsync(s => s.Index == previousSecondIndex);
                 var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);
 
                 secondToReset.Count = 0;
@@ -58,7 +58,7 @@ namespace ButtonStatistics
                 if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
-                    var monthToTransfer = await db.Months.SingleAsync(m => m.Index == previousMonthIndex);
+                    var monthToTransfer = await db.Months.AsNoTracking().SingleAsync(m => m.Index == previousMonthIndex);
 
                     currentYear.Count += monthToTransfer.Count;
 
@@ -72,7 +72,7 @@ namespace ButtonStatistics
                 if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex); // inte .AsNoTracking() här? för att denna ska uppdateras och trackas ac EF
-                    var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
+                    var dayToTransfer = await db.Days.AsNoTracking().SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
 
                     currentMonth.Count += dayToTransfer.Count;
 
@@ -86,7 +86,7 @@ namespace ButtonStatistics
                 if (currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
                     var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
-                    var hourToTransfer = await db.Hours.SingleAsync(h => h.Index == previousHourIndex);
+                    var hourToTransfer = await db.Hours.AsNoTracking().SingleAsync(h => h.Index == previousHourIndex);
 
                     currentDay.Count += hourToTransfer.Count;
 
@@ -100,7 +100,7 @@ namespace ButtonStatistics
                 if (currentSecondIndex == 0)
                 {
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
-                    var minuteToTransfer = await db.Minutes.SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
+                    var minuteToTransfer = await db.Minutes.AsNoTracking().SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
 
                     currentHour.Count += minuteToTransfer.Count;
 
