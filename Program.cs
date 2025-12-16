@@ -27,39 +27,94 @@ app.MapHub<ClickHub>("/hubs/clicks");
 
 app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHub> hub, IncrementNowRequest req) =>
 {
-    var index = DateTime.UtcNow.Second;
+    var secondIndex = DateTime.UtcNow.Second;
 
-    var click = await db.Seconds.SingleAsync(c => c.Index == index);
-    click.Count++;
+    await using var tx = await db.Database.BeginTransactionAsync();
 
-    var total = await db.TotalClicks.SingleAsync(t => t.Id == 1);
-    total.Count++;
-
-    // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
-    var localHour = await db.LocalHours.SingleAsync(h => h.Index == req.LocalHour);
-    localHour.Count++;
+    await db.Database.ExecuteSqlRawAsync("UPDATE Seconds SET Count = Count + 1 WHERE [Index] = {0}", secondIndex);
+    await db.Database.ExecuteSqlRawAsync("UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1");
+    await db.Database.ExecuteSqlRawAsync("UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {0}", req.LocalHour); // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
 
     if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6)
-    {
-        var weekday = await db.LocalWeekdays.SingleAsync(w => w.Index == lw);
-        weekday.Count++;
-        await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lw, count = weekday.Count });
-    }
+        await db.Database.ExecuteSqlRawAsync("UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {0}", lw);
 
     if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
-    {
-        var month = await db.LocalMonths.SingleAsync(m => m.Index == lm);
-        month.Count++;
-        await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lm, count = month.Count });
-    }
+        await db.Database.ExecuteSqlRawAsync("UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {0}", lm);
 
+    var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
+    var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
+    var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
 
-    await db.SaveChangesAsync();
+    int? localWeekdayCount = null;
+    if (req.LocalWeekday is int lw2 && lw2 >= 0 && lw2 <= 6)
+        localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == lw2).Select(w => w.Count).SingleAsync();
 
-    await hub.Clients.All.SendAsync("clickUpdated", new { click.Index, click.Count });
-    await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
-    await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHour.Count });
+    int? localMonthCount = null;
+    if (req.LocalMonth is int lm2 && lm2 >= 0 && lm2 <= 11)
+        localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == lm2).Select(m => m.Count).SingleAsync();
+
+    await tx.CommitAsync();
+
+    await hub.Clients.All.SendAsync("clickUpdated", new { index = secondIndex, count = secondCount });
+    await hub.Clients.All.SendAsync("totalUpdated", new { count = totalCount });
+    await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHourCount });
+
+    if (req.LocalWeekday is int lwb) // safe: bounds already checked above
+        await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lwb, count = localWeekdayCount });
+
+    if (req.LocalMonth is int lmb)
+        await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lmb, count = localMonthCount });
+
     return Results.Ok();
+
+
+
+
+
+
+    // Detta är den gammla less efficient code
+    // Den nya ska vara bättre för att:
+    // Fewer DB round-trips: no entity loads or SaveChanges tracking. You skip “SELECT row → mutate in memory → UPDATE,” and just do “UPDATE Count = Count + 1.”
+    // Less EF overhead: no change tracker, no entity materialization, less GC pressure per click.
+    // Shorter write locks: a single UPDATE holds the lock for a much shorter time than read-modify-write, so concurrent clicks contend less. This keeps latency tight and SignalR messages flowing.
+    // No lost updates: avoids read-modify-write races under bursty clicks, so counts stay correct without retries or conflicts.
+    // Predictable per-click latency: faster server turnaround means charts update sooner, reducing UI stutter.
+    // Wrap the UPDATEs + reads in one transaction (commit before broadcasting).
+    // Use AsNoTracking for the read-backs.
+    // Jag behåller den gamla koden för att den är motsvarig och jag förstår den bättre
+    // Så att när jag undrar över något i den nya koden
+    // Kan jag titta i den gamla koden och hitta dess motsvarighet
+
+    // var click = await db.Seconds.SingleAsync(c => c.Index == index);
+    // click.Count++;
+
+    // var total = await db.TotalClicks.SingleAsync(t => t.Id == 1);
+    // total.Count++;
+
+    // // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
+    // var localHour = await db.LocalHours.SingleAsync(h => h.Index == req.LocalHour);
+    // localHour.Count++;
+
+    // if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6)
+    // {
+    //     var weekday = await db.LocalWeekdays.SingleAsync(w => w.Index == lw);
+    //     weekday.Count++;
+    //     await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lw, count = weekday.Count });
+    // }
+
+    // if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
+    // {
+    //     var month = await db.LocalMonths.SingleAsync(m => m.Index == lm);
+    //     month.Count++;
+    //     await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lm, count = month.Count });
+    // }
+
+    // await db.SaveChangesAsync();
+
+    // await hub.Clients.All.SendAsync("clickUpdated", new { click.Index, click.Count });
+    // await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
+    // await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHour.Count });
+    // return Results.Ok();
 });
 
 app.MapGet("/seconds", async (AppDbContext db) =>

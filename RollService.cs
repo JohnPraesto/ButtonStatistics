@@ -71,8 +71,8 @@ namespace ButtonStatistics
                 // Once a day
                 if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
-                    var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex);
-                    var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex);
+                    var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex); // inte .AsNoTracking() här? för att denna ska uppdateras och trackas ac EF
+                    var dayToTransfer = await db.Days.SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
 
                     currentMonth.Count += dayToTransfer.Count;
 
