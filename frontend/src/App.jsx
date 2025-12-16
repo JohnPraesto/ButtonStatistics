@@ -170,20 +170,73 @@ function App() {
       .withAutomaticReconnect()
       .build()
 
-    connection.on('totalUpdated', ({ count }) => {setTotal(count)})
-
-    connection.on('clickUpdated', (updated) => {
-      setSeconds(prev => {
-        const i = prev.findIndex(r => r.index === updated.index)
-        if (i >= 0) {
-          const next = [...prev] // förstår inte riktigt vad som händer här inne
-          // next[i] = { ...next[i], count: updated.count } // vad är skillnaden på denna och nästa?
-          next[i] = updated
+    connection.on('statsUpdated', (u) => {
+      if (u.second) {
+        setSeconds(prev => {
+          const i = prev.findIndex(s => s.index === u.second.index)
+          if (i < 0) return prev
+          const next = [...prev]
+          next[i] = { ...next[i], count: u.second.count }
           return next
-        }
-        return [...prev, updated].sort((a, b) => a.index - b.index)
-      })
+        })
+      }
+
+      if (typeof u.total === 'number') setTotal(u.total)
+
+      if (u.localHour) {
+        setLocalHours(prev => {
+          const i = prev.findIndex(h => h.index === u.localHour.index)
+          if (i >= 0) {
+            const next = [...prev]
+            if (next[i].count === u.localHour.count) return prev
+            next[i] = { ...next[i], count: u.localHour.count }
+            return next
+          }
+          return [...prev, u.localHour].sort((a, b) => a.index - b.index)
+        })
+      }
+
+      if (u.localWeekday) {
+        setLocalWeekdays(prev => {
+          const i = prev.findIndex(w => w.index === u.localWeekday.index)
+          if (i >= 0) {
+            const next = [...prev]
+            if (next[i].count === u.localWeekday.count) return prev
+            next[i] = { ...next[i], count: u.localWeekday.count }
+            return next
+          }
+          return [...prev, u.localWeekday].sort((a, b) => a.index - b.index)
+        })
+      }
+
+      if (u.localMonth) {
+        setLocalMonths(prev => {
+          const i = prev.findIndex(m => m.index === u.localMonth.index)
+          if (i >= 0) {
+            const next = [...prev]
+            if (next[i].count === u.localMonth.count) return prev
+            next[i] = { ...next[i], count: u.localMonth.count }
+            return next
+          }
+          return [...prev, u.localMonth].sort((a, b) => a.index - b.index)
+        })
+      }
     })
+
+    // connection.on('totalUpdated', ({ count }) => {setTotal(count)})
+
+    // connection.on('clickUpdated', (updated) => {
+    //   setSeconds(prev => {
+    //     const i = prev.findIndex(r => r.index === updated.index)
+    //     if (i >= 0) {
+    //       const next = [...prev] // förstår inte riktigt vad som händer här inne
+    //       // next[i] = { ...next[i], count: updated.count } // vad är skillnaden på denna och nästa?
+    //       next[i] = updated
+    //       return next
+    //     }
+    //     return [...prev, updated].sort((a, b) => a.index - b.index)
+    //   })
+    // })
 
     connection.on('secondReset', ({ index }) => {
       setSeconds(prev => {
@@ -257,41 +310,41 @@ function App() {
       })
     })
 
-    connection.on('localHourUpdated', ({ index, count }) => {
-      setLocalHours(prev => {
-        const i = prev.findIndex(h => h.index === index)
-        if (i >= 0) {
-          const next = [...prev]
-          next[i] = { ...next[i], count }
-          return next
-        }
-        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
-      })
-    })
+    // connection.on('localHourUpdated', ({ index, count }) => {
+    //   setLocalHours(prev => {
+    //     const i = prev.findIndex(h => h.index === index)
+    //     if (i >= 0) {
+    //       const next = [...prev]
+    //       next[i] = { ...next[i], count }
+    //       return next
+    //     }
+    //     return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+    //   })
+    // })
 
-    connection.on('localWeekdayUpdated', ({ index, count }) => {
-      setLocalWeekdays(prev => {
-        const i = prev.findIndex(w => w.index === index)
-        if (i >= 0) {
-          const next = [...prev]
-          next[i] = { ...next[i], count }
-          return next
-        }
-        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
-      })
-    })
+    // connection.on('localWeekdayUpdated', ({ index, count }) => {
+    //   setLocalWeekdays(prev => {
+    //     const i = prev.findIndex(w => w.index === index)
+    //     if (i >= 0) {
+    //       const next = [...prev]
+    //       next[i] = { ...next[i], count }
+    //       return next
+    //     }
+    //     return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+    //   })
+    // })
 
-    connection.on('localMonthUpdated', ({ index, count }) => {
-      setLocalMonths(prev => {
-        const i = prev.findIndex(m => m.index === index)
-        if (i >= 0) {
-          const next = [...prev]
-          next[i] = { ...next[i], count }
-          return next
-        }
-        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
-      })
-    })
+    // connection.on('localMonthUpdated', ({ index, count }) => {
+    //   setLocalMonths(prev => {
+    //     const i = prev.findIndex(m => m.index === index)
+    //     if (i >= 0) {
+    //       const next = [...prev]
+    //       next[i] = { ...next[i], count }
+    //       return next
+    //     }
+    //     return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+    //   })
+    // })
 
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
@@ -547,31 +600,6 @@ function App() {
     }
   }
 
-  // Local Month histogram (0=Jan .. 11=Dec)
-  const localMonthMap = new Map(localMonths.map(m => [m.index, m.count]))
-  const localMonthIndices = Array.from({ length: 12 }, (_, i) => i)
-  const localMonthLabels = localMonthIndices.map(i => new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1))))
-  const localMonthCounts = localMonthIndices.map(i => localMonthMap.get(i) ?? 0)
-  const localMonthsData = {
-    labels: localMonthLabels,
-    datasets: [{
-      label: 'Clicks by local month',
-      data: localMonthCounts,
-      backgroundColor: 'rgba(234,88,12,0.35)',
-      borderColor: '#ea580c',
-      borderWidth: 1
-    }]
-  }
-  const localMonthsOptions = {
-    responsive: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local month' } },
-    scales: {
-      x: { title: { display: true, text: 'Month' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
-    }
-  }
-
-  // Local Weekday histogram (0=Sun .. 6=Sat)
   const localWeekdayMap = new Map(localWeekdays.map(w => [w.index, w.count]))
   const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
   const weekdayIndices = [0,1,2,3,4,5,6]
@@ -591,6 +619,29 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by weekday (local)' } },
     scales: {
       x: { title: { display: true, text: 'Weekday' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+  
+  const localMonthMap = new Map(localMonths.map(m => [m.index, m.count]))
+  const localMonthIndices = Array.from({ length: 12 }, (_, i) => i)
+  const localMonthLabels = localMonthIndices.map(i => new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1))))
+  const localMonthCounts = localMonthIndices.map(i => localMonthMap.get(i) ?? 0)
+  const localMonthsData = {
+    labels: localMonthLabels,
+    datasets: [{
+      label: 'Clicks by local month',
+      data: localMonthCounts,
+      backgroundColor: 'rgba(234,88,12,0.35)',
+      borderColor: '#ea580c',
+      borderWidth: 1
+    }]
+  }
+  const localMonthsOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local month' } },
+    scales: {
+      x: { title: { display: true, text: 'Month' } },
       y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
     }
   }
@@ -634,11 +685,11 @@ function App() {
       </div>
 
       <div className='bar-graph'>
-        <Bar data={localMonthsData} options={localMonthsOptions} />
+        <Bar data={localWeekdaysData} options={localWeekdaysOptions} />
       </div>
 
       <div className='bar-graph'>
-        <Bar data={localWeekdaysData} options={localWeekdaysOptions} />
+        <Bar data={localMonthsData} options={localMonthsOptions} />
       </div>
 
     </>

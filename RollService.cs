@@ -112,9 +112,10 @@ namespace ButtonStatistics
                 currentMinute.Count += secondToTransferCount;
 
                 await db.SaveChangesAsync();
-                await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
-                await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
 
+                await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
+                if (currentSecondIndex == 0 || secondToTransferCount > 0) // minuteUpdated signal wont send unless there actually has been seconds transfered to the minute
+                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
 
                 // <500 clients: every-second updates are typically fine.
                 // 500–5,000: consider throttling (5–10s).

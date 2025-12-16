@@ -2,6 +2,7 @@ using ButtonStatistics;
 using ButtonStatistics.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,7 +10,7 @@ builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlite("Da
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
 builder.Services.AddHostedService<RollService>();
 
 var app = builder.Build();
@@ -35,7 +36,7 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     await db.Database.ExecuteSqlRawAsync("UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1");
     await db.Database.ExecuteSqlRawAsync("UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {0}", req.LocalHour); // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
 
-    if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6)
+    if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6) // what happens here if it is not an int?
         await db.Database.ExecuteSqlRawAsync("UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {0}", lw);
 
     if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
@@ -55,15 +56,24 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
 
     await tx.CommitAsync();
 
-    await hub.Clients.All.SendAsync("clickUpdated", new { index = secondIndex, count = secondCount });
-    await hub.Clients.All.SendAsync("totalUpdated", new { count = totalCount });
-    await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHourCount });
+    // await hub.Clients.All.SendAsync("clickUpdated", new { index = secondIndex, count = secondCount });
+    // await hub.Clients.All.SendAsync("totalUpdated", new { count = totalCount });
+    // await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHourCount });
 
-    if (req.LocalWeekday is int lwb) // safe: bounds already checked above
-        await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lwb, count = localWeekdayCount });
+    // if (req.LocalWeekday is int lwb) 
+    //     await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lwb, count = localWeekdayCount });
 
-    if (req.LocalMonth is int lmb)
-        await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lmb, count = localMonthCount });
+    // if (req.LocalMonth is int lmb)
+    //     await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lmb, count = localMonthCount });
+
+    await hub.Clients.All.SendAsync("statsUpdated", new
+    {
+        second = new { index = secondIndex, count = secondCount },
+        total = totalCount,
+        localHour = new { index = req.LocalHour, count = localHourCount },
+        localWeekday = (req.LocalWeekday is int lwb) ? new { index = lwb, count = localWeekdayCount } : null, // this is the third time checking if it is an int... do we need that many checks? Can not somehow the first one be sufficient?
+        localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
+    });
 
     return Results.Ok();
 
