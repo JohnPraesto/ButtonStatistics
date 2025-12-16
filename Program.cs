@@ -35,18 +35,23 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     var total = await db.TotalClicks.SingleAsync(t => t.Id == 1);
     total.Count++;
 
+    // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
     var localHour = await db.LocalHours.SingleAsync(h => h.Index == req.LocalHour);
     localHour.Count++;
 
-    // if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6)
-    // {
-    //     var weekday = await db.LocalWeekdays.SingleAsync(w => w.Index == lw);
-    //     weekday.Count++;
-    //     await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lw, count = weekday.Count });
-    // }
+    if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6)
+    {
+        var weekday = await db.LocalWeekdays.SingleAsync(w => w.Index == lw);
+        weekday.Count++;
+        await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lw, count = weekday.Count });
+    }
 
-    var weekday = await db.LocalWeekdays.SingleAsync(w => w.Index == req.LocalWeekday);
-    weekday.Count++;
+    if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
+    {
+        var month = await db.LocalMonths.SingleAsync(m => m.Index == lm);
+        month.Count++;
+        await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lm, count = month.Count });
+    }
 
 
     await db.SaveChangesAsync();
@@ -54,7 +59,6 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     await hub.Clients.All.SendAsync("clickUpdated", new { click.Index, click.Count });
     await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
     await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHour.Count });
-        await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = req.LocalWeekday, count = weekday.Count });
     return Results.Ok();
 });
 
@@ -81,6 +85,9 @@ app.MapGet("/local-hours", async (AppDbContext db) =>
 
 app.MapGet("/local-weekdays", async (AppDbContext db) =>
     Results.Ok(await db.LocalWeekdays.AsNoTracking().OrderBy(w => w.Index).ToListAsync()));
+
+app.MapGet("/local-months", async (AppDbContext db) =>
+    Results.Ok(await db.LocalMonths.AsNoTracking().OrderBy(m => m.Index).ToListAsync()));
 
 app.MapGet("/total-clicks", async (AppDbContext db) =>
 {

@@ -26,6 +26,7 @@ function App() {
   const [years, setYears] = useState([])
   const [localHours, setLocalHours] = useState([])
   const [localWeekdays, setLocalWeekdays] = useState([])
+  const [localMonths, setLocalMonths] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
@@ -125,6 +126,17 @@ function App() {
     }
   }
 
+  const fetchLocalMonths = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/local-months`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setLocalMonths(data)
+    } catch (err) {
+      console.error('Failed to load local months:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -145,6 +157,7 @@ function App() {
     fetchYears()
     fetchLocalHours()
     fetchLocalWeekdays()
+    fetchLocalMonths()
     fetchTotal()
   }, [])
 
@@ -268,6 +281,18 @@ function App() {
       })
     })
 
+    connection.on('localMonthUpdated', ({ index, count }) => {
+      setLocalMonths(prev => {
+        const i = prev.findIndex(m => m.index === index)
+        if (i >= 0) {
+          const next = [...prev]
+          next[i] = { ...next[i], count }
+          return next
+        }
+        return [...prev, { index, count }].sort((a, b) => a.index - b.index)
+      })
+    })
+
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
@@ -277,7 +302,7 @@ function App() {
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ localHour: new Date().getHours(), localWeekday: new Date().getDay() }) 
+        body: JSON.stringify({ localHour: new Date().getHours(), localWeekday: new Date().getDay(), localMonth: new Date().getMonth() }) 
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setMyClicks(c => c + 1)
@@ -522,6 +547,30 @@ function App() {
     }
   }
 
+  // Local Month histogram (0=Jan .. 11=Dec)
+  const localMonthMap = new Map(localMonths.map(m => [m.index, m.count]))
+  const localMonthIndices = Array.from({ length: 12 }, (_, i) => i)
+  const localMonthLabels = localMonthIndices.map(i => new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(Date.UTC(2000, i, 1))))
+  const localMonthCounts = localMonthIndices.map(i => localMonthMap.get(i) ?? 0)
+  const localMonthsData = {
+    labels: localMonthLabels,
+    datasets: [{
+      label: 'Clicks by local month',
+      data: localMonthCounts,
+      backgroundColor: 'rgba(234,88,12,0.35)',
+      borderColor: '#ea580c',
+      borderWidth: 1
+    }]
+  }
+  const localMonthsOptions = {
+    responsive: true,
+    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local month' } },
+    scales: {
+      x: { title: { display: true, text: 'Month' } },
+      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+    }
+  }
+
   // Local Weekday histogram (0=Sun .. 6=Sat)
   const localWeekdayMap = new Map(localWeekdays.map(w => [w.index, w.count]))
   const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -582,6 +631,10 @@ function App() {
 
       <div className='bar-graph'>
         <Bar data={localHoursData} options={localHoursOptions} />
+      </div>
+
+      <div className='bar-graph'>
+        <Bar data={localMonthsData} options={localMonthsOptions} />
       </div>
 
       <div className='bar-graph'>

@@ -1,4 +1,4 @@
 ﻿namespace ButtonStatistics.Models
 {
-    public record IncrementNowRequest(int LocalHour, int? LocalWeekday);
+    public record IncrementNowRequest(int LocalHour, int? LocalWeekday, int? LocalMonth);
 }

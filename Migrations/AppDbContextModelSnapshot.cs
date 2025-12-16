@@ -456,6 +456,81 @@ namespace ButtonStatistics.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ButtonStatistics.Models.LocalMonth", b =>
+                {
+                    b.Property<int>("Index")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Index");
+
+                    b.ToTable("LocalMonths");
+
+                    b.HasData(
+                        new
+                        {
+                            Index = 0,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 1,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 2,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 3,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 4,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 5,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 6,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 7,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 8,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 9,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 10,
+                            Count = 0
+                        },
+                        new
+                        {
+                            Index = 11,
+                            Count = 0
+                        });
+                });
+
             modelBuilder.Entity("ButtonStatistics.Models.LocalWeekday", b =>
                 {
                     b.Property<int>("Index")
