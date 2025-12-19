@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +29,14 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: |
-          npm install
+          npm ci
           npm run build
+
+      - name: Copy frontend build into backend wwwroot
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .\wwwroot | Out-Null
+          Copy-Item -Path .\frontend\dist\* -Destination .\wwwroot -Recurse -Force
 
       - name: dotnet publish
         run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"

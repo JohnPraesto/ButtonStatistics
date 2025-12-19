@@ -87,8 +87,6 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
         localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
     });
 
-    app.MapFallbackToFile("index.html");
-
     return Results.Ok();
 
 
@@ -173,5 +171,7 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
     var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);
     return Results.Ok(new { count = total.Count });
 });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
