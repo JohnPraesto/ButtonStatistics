@@ -55,13 +55,16 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.Migrate();
+        Console.WriteLine("Migrations applied (or already up to date).");
     }
     catch (Exception ex)
     {
         // Log to console so Azure Log Stream shows it.
         Console.WriteLine("Error applying migrations: " + ex);
-        // Optional: rethrow to fail fast, or swallow to let the app run without DB.
-        throw;
+
+        // TEMP: do not rethrow so app can still start and we can debug via HTTP.
+        // Later, once stable, you can rethrow here again.
+        // throw;
     }
 }
 
