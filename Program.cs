@@ -17,7 +17,17 @@ builder.Services.AddDbContextPool<AppDbContext>(options =>
     }
     else
     {
-        options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnection"));
+        var sqlServerCs = builder.Configuration.GetConnectionString("SqlServerConnection");
+
+        if (string.IsNullOrWhiteSpace(sqlServerCs))
+        {
+            // This will surface clearly in Azure logs.
+            throw new InvalidOperationException(
+                "SqlServerConnection is not configured. " +
+                "Make sure ConnectionStrings__SqlServerConnection is set in Azure App Settings.");
+        }
+
+        options.UseSqlServer(sqlServerCs);
     }
 });
 
@@ -41,8 +51,18 @@ var app = builder.Build();
 // Apply pending migrations on startup (both local and Azure)
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        // Log to console so Azure Log Stream shows it.
+        Console.WriteLine("Error applying migrations: " + ex);
+        // Optional: rethrow to fail fast, or swallow to let the app run without DB.
+        throw;
+    }
 }
 
 if (app.Environment.IsDevelopment())
