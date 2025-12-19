@@ -44,7 +44,10 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
-builder.Services.AddHostedService<RollService>();
+if (builder.Environment.IsDevelopment()) // denna e tillfällig?
+{
+    builder.Services.AddHostedService<RollService>();
+}
 
 var app = builder.Build();
 
@@ -67,31 +70,30 @@ using (var scope = app.Services.CreateScope())
         // throw;
     }
 }
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
 
+            var feature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+            Console.WriteLine("Unhandled exception: " + feature?.Error);
+
+            // Minimal JSON payload; your frontend just cares that it's 500
+            await context.Response.WriteAsync("{\"error\":\"An error occurred.\"}");
+        });
+    });
+}
 if (app.Environment.IsDevelopment())
 {
+    app.UseHttpsRedirection();
     app.UseSwagger();
     app.UseSwaggerUI();
     app.UseCors();
 }
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-app.UseExceptionHandler(errorApp =>
-{
-    errorApp.Run(async context =>
-    {
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        context.Response.ContentType = "text/plain";
-
-        var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
-        Console.WriteLine("Unhandled exception: " + exceptionHandlerPathFeature?.Error);
-
-        await context.Response.WriteAsync("An error occurred.");
-    });
-});
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -231,6 +233,8 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
     var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);
     return Results.Ok(new { count = total.Count });
 });
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapFallbackToFile("index.html");
 
