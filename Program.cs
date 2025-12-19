@@ -6,7 +6,21 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlite("Data Source=clicks.db"));
+var env = builder.Environment;
+
+builder.Services.AddDbContextPool<AppDbContext>(options =>
+{
+    if (env.IsDevelopment())
+    {
+        options.UseSqlite(builder.Configuration.GetConnectionString("SqliteConnection")
+                          ?? "Data Source=clicks.db");
+    }
+    else
+    {
+        options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnection"));
+    }
+});
+
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 {
     if (builder.Environment.IsDevelopment())
@@ -23,6 +37,13 @@ builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.
 builder.Services.AddHostedService<RollService>();
 
 var app = builder.Build();
+
+// Apply pending migrations on startup (both local and Azure)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 if (app.Environment.IsDevelopment())
 {
