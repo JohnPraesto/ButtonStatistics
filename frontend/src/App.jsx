@@ -687,7 +687,6 @@ function App() {
 
       <h2>Total clicks: {total}</h2>
       <p>You have clicked the button {myClicks} times.</p>
-      <p>change to test deployment to azure</p>
 
       <button onClick={handleClick} className="click-text">
         {myClicks}
