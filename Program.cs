@@ -75,7 +75,23 @@ if (app.Environment.IsDevelopment())
     app.UseCors();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "text/plain";
+
+        var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        Console.WriteLine("Unhandled exception: " + exceptionHandlerPathFeature?.Error);
+
+        await context.Response.WriteAsync("An error occurred.");
+    });
+});
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

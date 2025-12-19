@@ -33,7 +33,7 @@ const BarChart = memo(function BarChart({ data, options }) {
 })
 
 function App() {
-  const apiUrl = import.meta.env.VITE_API_URL;
+  const apiUrl = import.meta.env.VITE_API_URL ?? '';
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
   const [hours, setHours] = useState([])
