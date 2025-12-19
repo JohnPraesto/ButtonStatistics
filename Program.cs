@@ -70,23 +70,23 @@ using (var scope = app.Services.CreateScope())
         // throw;
     }
 }
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler(errorApp =>
-    {
-        errorApp.Run(async context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            context.Response.ContentType = "application/json";
+//if (!app.Environment.IsDevelopment())
+//{
+//    app.UseExceptionHandler(errorApp =>
+//    {
+//        errorApp.Run(async context =>
+//        {
+//            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+//            context.Response.ContentType = "application/json";
 
-            var feature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
-            Console.WriteLine("Unhandled exception: " + feature?.Error);
+//            var feature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+//            Console.WriteLine("Unhandled exception: " + feature?.Error);
 
-            // Minimal JSON payload; your frontend just cares that it's 500
-            await context.Response.WriteAsync("{\"error\":\"An error occurred.\"}");
-        });
-    });
-}
+//            // Minimal JSON payload; your frontend just cares that it's 500
+//            await context.Response.WriteAsync("{\"error\":\"An error occurred.\"}");
+//        });
+//    });
+//}
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -235,6 +235,13 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.MapGet("/debug/minutes", async (AppDbContext db) =>
+{
+    // Try to load some data, and serialize what you see
+    var list = await db.Minutes.AsNoTracking().OrderBy(m => m.Index).ToListAsync();
+    return Results.Ok(list.Select(m => new { m.Index, m.Count }));
+});
 
 app.MapFallbackToFile("index.html");
 
