@@ -7,7 +7,16 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContextPool<AppDbContext>(options => options.UseSqlite("Data Source=clicks.db"));
-builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        p.WithOrigins("http://localhost:5173")
+         .AllowAnyHeader()
+         .AllowAnyMethod()
+         .AllowCredentials();
+    }
+}));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
@@ -19,10 +28,12 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseCors();
 }
 
 app.UseHttpsRedirection();
-app.UseCors();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
@@ -75,6 +86,8 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
         localWeekday = (req.LocalWeekday is int lwb) ? new { index = lwb, count = localWeekdayCount } : null, // this is the third time checking if it is an int... do we need that many checks? Can not somehow the first one be sufficient?
         localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
     });
+
+    app.MapFallbackToFile("index.html");
 
     return Results.Ok();
 

@@ -26,6 +26,12 @@ jobs:
       - name: Build with dotnet
         run: dotnet build --configuration Release
 
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
       - name: dotnet publish
         run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
