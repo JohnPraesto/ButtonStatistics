@@ -179,8 +179,6 @@ function App() {
 
   useEffect(() => {
 
-    if (!apiUrl) return
-
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`${apiUrl}/hubs/clicks`, {withCredentials: false})
       .withAutomaticReconnect()
