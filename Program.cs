@@ -35,7 +35,7 @@ builder.Services.AddCors(options =>
             options.AddPolicy(
                 "AllowFrontend",
                 policy =>
-                    policy.WithOrigins("http://localhost:5173", "https://skillchallenge.net")
+                    policy.WithOrigins("http://localhost:5173", "https://buttonstatistics-e7etafeueza8hhgt.swedencentral-01.azurewebsites.net/")
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials()
