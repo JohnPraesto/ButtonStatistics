@@ -20,16 +20,27 @@ builder.Services.AddDbContextPool<AppDbContext>(options =>
     }
 });
 
-builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-{
-    if (builder.Environment.IsDevelopment())
-    {
-        p.WithOrigins("http://localhost:5173")
-         .AllowAnyHeader()
-         .AllowAnyMethod()
-         .AllowCredentials();
-    }
-}));
+// builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+// {
+//     if (builder.Environment.IsDevelopment())
+//     {
+//         p.WithOrigins("http://localhost:5173")
+//          .AllowAnyHeader()
+//          .AllowAnyMethod()
+//          .AllowCredentials();
+//     }
+// }));
+builder.Services.AddCors(options =>
+        {
+            options.AddPolicy(
+                "AllowFrontend",
+                policy =>
+                    policy.WithOrigins("http://localhost:5173", "https://skillchallenge.net")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials()
+            );
+        });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
@@ -37,7 +48,7 @@ builder.Services.AddHostedService<RollService>();
 
 var app = builder.Build();
 
-// Apply pending migrations on startup (both local and Azure)
+// Apply pending migrations on startup (both local and Azure) den här behöver kontrolleras om den ens funkar... uppdatera via consolen annars och ta bort detta 
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -56,13 +67,13 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseHttpsRedirection();
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseCors();
 }
+app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseCors("AllowFrontend");
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
