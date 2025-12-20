@@ -12,22 +12,11 @@ builder.Services.AddDbContextPool<AppDbContext>(options =>
 {
     if (env.IsDevelopment())
     {
-        options.UseSqlite(builder.Configuration.GetConnectionString("SqliteConnection")
-                          ?? "Data Source=clicks.db");
+        options.UseSqlite(builder.Configuration.GetConnectionString("SqliteConnection") ?? "Data Source=clicks.db");
     }
     else
     {
-        var sqlServerCs = builder.Configuration.GetConnectionString("SqlServerConnection");
-
-        if (string.IsNullOrWhiteSpace(sqlServerCs))
-        {
-            // This will surface clearly in Azure logs.
-            throw new InvalidOperationException(
-                "SqlServerConnection is not configured. " +
-                "Make sure ConnectionStrings__SqlServerConnection is set in Azure App Settings.");
-        }
-
-        options.UseSqlServer(sqlServerCs);
+        options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnection"));
     }
 });
 
@@ -44,10 +33,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
-if (builder.Environment.IsDevelopment()) // denna e tillfällig?
-{
-    builder.Services.AddHostedService<RollService>();
-}
+builder.Services.AddHostedService<RollService>();
 
 var app = builder.Build();
 
@@ -64,29 +50,10 @@ using (var scope = app.Services.CreateScope())
     {
         // Log to console so Azure Log Stream shows it.
         Console.WriteLine("Error applying migrations: " + ex);
-
-        // TEMP: do not rethrow so app can still start and we can debug via HTTP.
-        // Later, once stable, you can rethrow here again.
-        // throw;
+        throw;
     }
 }
-//if (!app.Environment.IsDevelopment())
-//{
-//    app.UseExceptionHandler(errorApp =>
-//    {
-//        errorApp.Run(async context =>
-//        {
-//            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-//            context.Response.ContentType = "application/json";
 
-//            var feature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
-//            Console.WriteLine("Unhandled exception: " + feature?.Error);
-
-//            // Minimal JSON payload; your frontend just cares that it's 500
-//            await context.Response.WriteAsync("{\"error\":\"An error occurred.\"}");
-//        });
-//    });
-//}
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
