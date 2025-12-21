@@ -14,7 +14,13 @@ import {
   Legend,
   Filler
 } from 'chart.js'
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
+import ChartDataLabels from 'chartjs-plugin-datalabels'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ChartDataLabels)
+ChartJS.defaults.plugins.datalabels = {
+  ...(ChartJS.defaults.plugins.datalabels ?? {}),
+  display: false
+}
 
 const LineChart = memo(function LineChart({ data, options }) {
   return (
@@ -34,6 +40,24 @@ const BarChart = memo(function BarChart({ data, options }) {
 
 function App() {
   const apiUrl = import.meta.env.VITE_API_URL ?? '';
+
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 640px)').matches
+  })
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = (e) => setIsMobile(e.matches)
+    if (mq.addEventListener) mq.addEventListener('change', onChange)
+    else mq.addListener(onChange)
+    setIsMobile(mq.matches)
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange)
+      else mq.removeListener(onChange)
+    }
+  }, [])
+
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
   const [hours, setHours] = useState([])
@@ -370,9 +394,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Clicks during the last minute' } },
     scales: {
       x: { title: { display: true, text: 'Second' }, ticks: { display: false } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   // const secMap = new Map(seconds.map(s => [s.index, s.count]));
   // const rotatedSecondIndices = Array.from({ length: 60 }, (_, k) => (currentUtcSecond + 1 + k) % 60);
@@ -438,9 +462,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Last hour' } },
     scales: {
       x: { title: { display: true, text: 'Minute' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   const hourMap = useMemo(() => new Map(hours.map(h => [h.index, h.count])), [hours])
   const rotatedHourIndices = useMemo(() => Array.from({ length: 24 }, (_, k) => (currentUtcHour + 1 + k) % 24), [currentUtcHour])
@@ -473,9 +497,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Last day' } },
     scales: {
       x: { title: { display: true, text: 'Hour' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   const dayMap = useMemo(() => new Map(days.map(d => [d.index, d.count])), [days])
   const dayIndices = useMemo(() => Array.from({ length: 30 }, (_, i) => i + 1), [])
@@ -512,9 +536,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Last month' } },
     scales: {
       x: { title: { display: true, text: 'Day' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
 
   const monthMap = useMemo(() => new Map(months.map(m => [m.index, m.count])), [months])
@@ -556,9 +580,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Last year' } },
     scales: {
       x: { title: { display: true, text: 'Month' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   const yearMap = useMemo(() => new Map(years.map(y => [y.index, y.count])), [years])
   const yearLabelsAndCounts = useMemo(() => {
@@ -597,9 +621,9 @@ function App() {
     plugins: { legend: { display: false }, title: { display: true, text: 'Last 10 years' } },
     scales: {
       x: { title: { display: true, text: 'Year' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   const localHourMap = useMemo(() => new Map(localHours.map(h => [h.index, h.count])), [localHours])
   const localHourIndices = useMemo(() => Array.from({ length: 24 }, (_, i) => i), [])
@@ -619,12 +643,25 @@ function App() {
     responsive: true,
     animation: false,
     normalized: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local hour (0–23)' } },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Clicks by local hour (0–23)' },
+      datalabels: {
+        display: true,
+        color: 'rgba(255, 255, 255, 0.85)',
+        anchor: 'end',
+        align: 'end',
+        offset: 2,
+        clamp: true,
+        formatter: (v) => (typeof v === 'number' && v > 0 ? v : ''),
+        font: { size: isMobile ? 9 : 11, weight: '600' }
+      }
+    },
     scales: {
       x: { title: { display: true, text: 'Hour' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   const localWeekdayMap = useMemo(() => new Map(localWeekdays.map(w => [w.index, w.count])), [localWeekdays])
   const weekdayLabels = useMemo(() => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], [])
@@ -644,12 +681,25 @@ function App() {
     responsive: true,
     animation: false,
     normalized: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by weekday (local)' } },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Clicks by weekday (local)' },
+      datalabels: {
+        display: true,
+        color: 'rgba(255, 255, 255, 0.85)',
+        anchor: 'end',
+        align: 'end',
+        offset: 2,
+        clamp: true,
+        formatter: (v) => (typeof v === 'number' && v > 0 ? v : ''),
+        font: { size: isMobile ? 9 : 11, weight: '600' }
+      }
+    },
     scales: {
       x: { title: { display: true, text: 'Weekday' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
   
   const localMonthMap = useMemo(() => new Map(localMonths.map(m => [m.index, m.count])), [localMonths])
   const localMonthIndices = useMemo(() => Array.from({ length: 12 }, (_, i) => i), [])
@@ -673,40 +723,58 @@ function App() {
     responsive: true,
     animation: false,
     normalized: true,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Clicks by local month' } },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Clicks by local month' },
+      datalabels: {
+        display: true,
+        color: 'rgba(255, 255, 255, 0.85)',
+        anchor: 'end',
+        align: 'end',
+        offset: 2,
+        clamp: true,
+        formatter: (v) => (typeof v === 'number' && v > 0 ? v : ''),
+        font: { size: isMobile ? 9 : 11, weight: '600' }
+      }
+    },
     scales: {
       x: { title: { display: true, text: 'Month' } },
-      y: { beginAtZero: true, title: { display: true, text: 'Count' }, ticks: { precision: 0 } }
+      y: { beginAtZero: true, title: { display: !isMobile, text: 'Count' }, ticks: { precision: 0 } }
     }
-  }), [])
+  }), [isMobile])
 
   return (
     <>
 
-      <h2>Total clicks: {total}</h2>
-      <p>You have clicked the button {myClicks} times.</p>
+      <div className="sticky-header">
+        
 
-      <button onClick={handleClick} className="click-text">
-        {myClicks}
-      </button>
+        <button onClick={handleClick} className="click-text">
+          {myClicks}
+        </button>
+      </div>
 
-      <LineChart data={secondsData} options={secondsOptions} />
+      <div className="page-content">
+        <h2>Total clicks: {total}</h2>
+        
+        <LineChart data={secondsData} options={secondsOptions} />
 
-      <LineChart data={minutesData} options={minutesOptions} />
+        <LineChart data={minutesData} options={minutesOptions} />
 
-      <LineChart data={hoursData} options={hoursOptions} />
+        <LineChart data={hoursData} options={hoursOptions} />
 
-      <LineChart data={daysData} options={daysOptions} />
+        <LineChart data={daysData} options={daysOptions} />
 
-      <LineChart data={monthsData} options={monthsOptions} />
+        <LineChart data={monthsData} options={monthsOptions} />
 
-      <LineChart data={yearsData} options={yearsOptions} />
+        <LineChart data={yearsData} options={yearsOptions} />
 
-      <BarChart data={localHoursData} options={localHoursOptions} />
+        <BarChart data={localHoursData} options={localHoursOptions} />
 
-      <BarChart data={localWeekdaysData} options={localWeekdaysOptions} />
+        <BarChart data={localWeekdaysData} options={localWeekdaysOptions} />
 
-      <BarChart data={localMonthsData} options={localMonthsOptions} />
+        <BarChart data={localMonthsData} options={localMonthsOptions} />
+      </div>
 
     </>
   )

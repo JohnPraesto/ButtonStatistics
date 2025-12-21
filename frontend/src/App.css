@@ -1,7 +1,8 @@
 #root {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: clamp(1rem, 3vw, 2rem);
   text-align: center;
 }
 
@@ -9,9 +10,35 @@ body {
   background-color: #0f172a;
 }
 
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #0f172a;
+  padding: 0.1rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sticky-header h2,
+.sticky-header p {
+  margin: 0;
+}
+
+.sticky-header p {
+  max-width: 40ch;
+}
+
+.page-content {
+  padding-top: 0.2rem;
+}
+
 button {
-  width: 200px;
-  height: 200px;
+  width: clamp(140px, 45vw, 200px);
+  height: clamp(140px, 45vw, 200px);
   border-radius: 50%;
 }
 
@@ -20,22 +47,29 @@ button:hover {
 }
 
 button:active {
-  /* transform: translateY(1px);  */
   filter: brightness(0.95);
   box-shadow: 0 0 17px #3b44d1, 0 6px 16px rgba(0,0,0,.2);
 }
 
 table{
-  margin: 50px;
-  width: 200px;
+  margin: 1.5rem auto;
+  width: min(420px, 100%);
   border-style:solid;
 }
 
 .chart{
-  height: 700px;
-  width: 1000px;
+  width: min(1000px, 100%);
+  margin: 1.5rem auto;
 }
 
-.click-text{
-  font-size: 30px;
+.chart canvas {
+  max-width: 100%;
+}
+
+.click-text {
+  font-size: clamp(20px, 6vw, 30px);
+  touch-action: manipulation; /* prevents double-tap zoom on supported mobile browsers */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
