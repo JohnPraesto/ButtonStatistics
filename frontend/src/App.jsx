@@ -38,6 +38,32 @@ const BarChart = memo(function BarChart({ data, options }) {
   )
 })
 
+const ClickProgress = memo(function ClickProgress({ total, max }) {
+  const percentage = max > 0 ? (total / max) * 100 : 0
+  const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), []) // this makes 1000000 into 1 000 000 (more readable)
+
+  return (
+    <div className="top-progress">
+      <div
+        className="top-progress__track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={total}
+        aria-valuetext={`${formatted.format(total)} of ${formatted.format(max)}`}
+        title={`${formatted.format(total)} / ${formatted.format(max)}`}>
+
+        <div className="top-progress__fill" style={{ width: `${percentage}%` }}>
+          <span className="top-progress__value">{formatted.format(total)}</span>
+        </div>
+
+        <span className="top-progress__label top-progress__label--min">{formatted.format(0)}</span>
+        <span className="top-progress__label top-progress__label--max">{formatted.format(max)}</span>
+      </div>
+    </div>
+  )
+})
+
 function App() {
   const apiUrl = import.meta.env.VITE_API_URL ?? '';
 
@@ -746,33 +772,23 @@ function App() {
   return (
     <>
 
-      <div className="sticky-header">
+      <ClickProgress total={total} max={10000}/>
         
-
+      <div className="sticky-header">
         <button onClick={handleClick} className="click-text">
           {myClicks}
         </button>
       </div>
 
       <div className="page-content">
-        <h2>Total clicks: {total}</h2>
-        
         <LineChart data={secondsData} options={secondsOptions} />
-
         <LineChart data={minutesData} options={minutesOptions} />
-
         <LineChart data={hoursData} options={hoursOptions} />
-
         <LineChart data={daysData} options={daysOptions} />
-
         <LineChart data={monthsData} options={monthsOptions} />
-
         <LineChart data={yearsData} options={yearsOptions} />
-
         <BarChart data={localHoursData} options={localHoursOptions} />
-
         <BarChart data={localWeekdaysData} options={localWeekdaysOptions} />
-
         <BarChart data={localMonthsData} options={localMonthsOptions} />
       </div>
 
