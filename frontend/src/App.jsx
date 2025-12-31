@@ -44,21 +44,14 @@ const ClickProgress = memo(function ClickProgress({ total, max }) {
 
   return (
     <div className="top-progress">
-      <div
-        className="top-progress__track"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={max}
-        aria-valuenow={total}
-        aria-valuetext={`${formatted.format(total)} of ${formatted.format(max)}`}
-        title={`${formatted.format(total)} / ${formatted.format(max)}`}>
+      <div className="top-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={total} aria-valuetext={`${formatted.format(total)} of ${formatted.format(max)}`} title={`${formatted.format(total)} / ${formatted.format(max)}`}>
 
-        <div className="top-progress__fill" style={{ width: `${percentage}%` }}>
-          <span className="top-progress__value">{formatted.format(total)}</span>
-        </div>
+        <div className="top-progress__fill" style={{ width: `${percentage}%` }}></div>
+        <span className="top-progress__value">Total clicks: {formatted.format(total)}</span>
 
         <span className="top-progress__label top-progress__label--min">{formatted.format(0)}</span>
         <span className="top-progress__label top-progress__label--max">{formatted.format(max)}</span>
+      
       </div>
     </div>
   )

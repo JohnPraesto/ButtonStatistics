@@ -97,17 +97,12 @@ table{
   border-radius: 999px;
   background: linear-gradient(90deg, #646cff, #22c55e);
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 0.5rem;
-  overflow: hidden;
 }
 
 .top-progress__value {
   font-size: 0.85rem;
   font-weight: 700;
-  color: rgba(0, 0, 0);
+  color: rgb(197, 197, 207);
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
