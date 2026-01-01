@@ -521,11 +521,11 @@ function App() {
   }), [isMobile])
 
   const dayMap = useMemo(() => new Map(days.map(d => [d.index, d.count])), [days])
-  const dayIndices = useMemo(() => Array.from({ length: 30 }, (_, i) => i + 1), [])
-  const rotatedDayIndices = useMemo(
-    () => [...dayIndices.slice(currentUtcDay), ...dayIndices.slice(0, currentUtcDay)],
-    [dayIndices, currentUtcDay]
-  )
+  const dayIndices = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), [])
+  const rotatedDayIndices = useMemo(() => {
+    const rotated = [...dayIndices.slice(currentUtcDay), ...dayIndices.slice(0, currentUtcDay)]
+    return rotated.slice(3) // remove first 3 elements => length 28
+  }, [dayIndices, currentUtcDay])
   const dayLabels = useMemo(() => rotatedDayIndices.map(i => i.toString()), [rotatedDayIndices])
   const dayCounts = useMemo(() => rotatedDayIndices.map(i => dayMap.get(i) ?? 0), [rotatedDayIndices, dayMap])
   const daysData = useMemo(() => ({
