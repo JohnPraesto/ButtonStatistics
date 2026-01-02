@@ -54,59 +54,95 @@ namespace ButtonStatistics
                 secondToReset.Count = 0;
                 int secondToTransferCount = secondToTransfer.Count;
 
-                // Once a month
-                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                // Once a minute
+                if (currentSecondIndex == 0)
                 {
-                    var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
-                    var monthToTransfer = await db.Months.AsNoTracking().SingleAsync(m => m.Index == previousMonthIndex);
+                    var minuteToTransfer = await db.Minutes.AsNoTracking().SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
 
-                    currentYear.Count += monthToTransfer.Count;
+                    // If the previous minute is the last minute of the hour (index 59).
+                    // It means that it is now a new hour and the current minute is the 1st of the new hour.
+                    // Then the previous minute count can not be added to the current hour.
+                    // It has to be added to the previous hour.
+                    if (currentMinuteIndex == 0) // Kan rationaliseras bort. Genom att lägga till && minuteToTransfer.Count != 0. Alltså, den behöver inte göra några databasanrop eller SinglaR signaler om det inte finns några counts att adda.
+                    {
+                        var previousHour = await db.Hours.SingleAsync(h => h.Index == previousHourIndex);
+                        previousHour.Count += minuteToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("hourUpdated", new { index = previousHourIndex, count = previousHour!.Count }, stoppingToken);
+                    }
+                    else
+                    {
+                        var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
+                        currentHour.Count += minuteToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
+                    }
 
-                    var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
-                    currentMonth.Count = 0;
-
-                    await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex, count = currentYear!.Count }, stoppingToken);
-                }
-
-                // Once a day
-                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
-                {
-                    var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex); // inte .AsNoTracking() här? för att denna ska uppdateras och trackas ac EF
-                    var dayToTransfer = await db.Days.AsNoTracking().SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
-
-                    currentMonth.Count += dayToTransfer.Count;
-
-                    var currentDay = await db.Days.SingleAsync(d => d.Index == currentDayIndex);
-                    currentDay.Count = 0;
-
-                    await _hub.Clients.All.SendAsync("monthUpdated", new { index = currentMonthIndex, count = currentMonth!.Count }, stoppingToken);
+                    currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
                 }
 
                 // Once an hour
                 if (currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
-                    var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
                     var hourToTransfer = await db.Hours.AsNoTracking().SingleAsync(h => h.Index == previousHourIndex);
 
-                    currentDay.Count += hourToTransfer.Count;
+                    if (currentHourIndex == 0)
+                    {
+                        var previousDay = await db.Days.SingleAsync(h => h.Index == previousDayIndex);
+                        previousDay.Count += hourToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("dayUpdated", new { index = previousDayIndex, count = previousDay!.Count }, stoppingToken);
+                    }
+                    else
+                    {
+                        var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
+                        currentDay.Count += hourToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
+                    }
 
                     var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
                     currentHour.Count = 0;
-
-                    await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
                 }
 
-                // Once a minute
-                if (currentSecondIndex == 0)
+                // Once a day
+                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
                 {
-                    var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
-                    var minuteToTransfer = await db.Minutes.AsNoTracking().SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
+                    var dayToTransfer = await db.Days.AsNoTracking().SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
 
-                    currentHour.Count += minuteToTransfer.Count;
+                    if (currentDayIndex == 1)
+                    {
+                        var previousMonth = await db.Months.SingleAsync(m => m.Index == previousMonthIndex); // inte .AsNoTracking() här? för att denna ska uppdateras och trackas ac EF
+                        previousMonth.Count += dayToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("monthUpdated", new { index = previousMonthIndex, count = previousMonth!.Count }, stoppingToken);
+                    }
+                    else
+                    {
+                        var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex);
+                        currentMonth.Count += dayToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("monthUpdated", new { index = currentMonthIndex, count = currentMonth!.Count }, stoppingToken);
+                    }
 
-                    currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
+                    var currentDay = await db.Days.SingleAsync(d => d.Index == currentDayIndex);
+                    currentDay.Count = 0;
+                }
 
-                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken); // bort
+                // Once a month
+                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
+                {
+                    var monthToTransfer = await db.Months.AsNoTracking().SingleAsync(m => m.Index == previousMonthIndex);
+
+                    if (currentMonthIndex == 1)
+                    {
+                        var previousYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex - 1);
+                        previousYear.Count += monthToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex - 1, count = previousYear!.Count }, stoppingToken);
+                    }
+                    else
+                    {
+                        var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
+                        currentYear.Count += monthToTransfer.Count;
+                        await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex, count = currentYear!.Count }, stoppingToken);
+                    }
+
+                    var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
+                    currentMonth.Count = 0;
                 }
 
                 currentMinute.Count += secondToTransferCount;
