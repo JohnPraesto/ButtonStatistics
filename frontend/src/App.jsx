@@ -683,8 +683,8 @@ function App() {
   }), [isMobile])
 
   const localWeekdayMap = useMemo(() => new Map(localWeekdays.map(w => [w.index, w.count])), [localWeekdays])
-  const weekdayLabels = useMemo(() => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], [])
-  const weekdayIndices = useMemo(() => [0,1,2,3,4,5,6], [])
+  const weekdayLabels = useMemo(() => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], [])
+  const weekdayIndices = useMemo(() => [1,2,3,4,5,6,0], [])
   const localWeekdayCounts = useMemo(() => weekdayIndices.map(i => localWeekdayMap.get(i) ?? 0), [weekdayIndices, localWeekdayMap])
   const localWeekdaysData = useMemo(() => ({
     labels: weekdayLabels,
