@@ -20,16 +20,6 @@ builder.Services.AddDbContextPool<AppDbContext>(options =>
     }
 });
 
-// builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-// {
-//     if (builder.Environment.IsDevelopment())
-//     {
-//         p.WithOrigins("http://localhost:5173")
-//          .AllowAnyHeader()
-//          .AllowAnyMethod()
-//          .AllowCredentials();
-//     }
-// }));
 builder.Services.AddCors(options =>
         {
             options.AddPolicy(
@@ -107,16 +97,6 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
 
     await tx.CommitAsync();
 
-    // await hub.Clients.All.SendAsync("clickUpdated", new { index = secondIndex, count = secondCount });
-    // await hub.Clients.All.SendAsync("totalUpdated", new { count = totalCount });
-    // await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHourCount });
-
-    // if (req.LocalWeekday is int lwb) 
-    //     await hub.Clients.All.SendAsync("localWeekdayUpdated", new { index = lwb, count = localWeekdayCount });
-
-    // if (req.LocalMonth is int lmb)
-    //     await hub.Clients.All.SendAsync("localMonthUpdated", new { index = lmb, count = localMonthCount });
-
     // This is one batch of signals. Instead of sending five.
     await hub.Clients.All.SendAsync("statsUpdated", new
     {
@@ -127,7 +107,14 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
         localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
     });
 
-    return Results.Ok();
+    const int milestone = 4540;
+
+    return Results.Ok(new
+    {
+        milestoneHit = totalCount == milestone,
+        milestone,
+        total = totalCount
+    });
 
 
 

@@ -124,3 +124,28 @@ table{
 
 .top-progress__label--min { left: 0; }
 .top-progress__label--max { right: 0; }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal {
+  /* width: min(520px, 100%); */
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+  color: #6da2d1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
