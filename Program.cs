@@ -107,7 +107,7 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
         localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
     });
 
-    const int milestone = 20_400;
+    const int milestone = 100_000;
     bool milestoneHit = totalCount == milestone;
 
     if (milestoneHit)
