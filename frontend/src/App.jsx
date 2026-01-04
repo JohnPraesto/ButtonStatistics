@@ -827,7 +827,7 @@ function App() {
       <ClickProgress total={total} max={1000000}/>
         
       <div className="sticky-header">
-        <button onClick={handleClick} className="click-text">
+        <button onClick={handleClick} className="click-button">
           {myClicks}
         </button>
       </div>
