@@ -148,6 +148,10 @@ table{
   color: #6da2d1;
 }
 
+.modal h1 {
+  overflow-wrap: anywhere;
+}
+
 .modal-actions {
   display: flex;
   justify-content: center;
@@ -155,7 +159,6 @@ table{
 }
 
 .modal-close {
-  appearance: none;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(30, 41, 59, 0.55);
   color: rgba(255, 255, 255, 0.92);
@@ -164,7 +167,6 @@ table{
   border-radius: 10px;
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-  max-width: 100%;
 }
 
 .modal-close:hover {
@@ -181,9 +183,4 @@ table{
 .modal-close:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.35);
-}
-
-.modal-close:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
