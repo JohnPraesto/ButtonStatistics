@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo } from 'react'
+import { useState, useEffect, useMemo, memo} from 'react'
 import './App.css'
 import * as signalR from '@microsoft/signalr'
 import { Line, Bar } from 'react-chartjs-2'
@@ -57,7 +57,7 @@ const ClickProgress = memo(function ClickProgress({ total, max }) {
   )
 })
 
-const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, onClose }) {
+const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, variant, onClose }) {
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), [])
   const [confirmClose, setConfirmClose] = useState(false)
 
@@ -68,7 +68,7 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, on
   if (!open) return null
 
   const handleCloseClick = () => {
-    if (!confirmClose) {
+    if (variant === 'self' && !confirmClose) {
       setConfirmClose(true)
       return
     }
@@ -84,15 +84,28 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, on
         aria-labelledby="milestone-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h1 id="milestone-title">Congratulations!</h1>
-        <h2>
-          You made the <strong>{formatted.format(milestone)}</strong>th click!
-        </h2>
-        {/* Future: make a form when filled send with Mailjet */}
-        <p>
-          Email a screenshot of this window to john_praesto@hotmail.com and wish for a charity or a non-profit association to get a {total/1000} SEK donation from me
-        </p>
-        <div className="modal-actions">
+
+        {variant === 'self' ? (
+          <>
+            <h1 id="milestone-title">Congratulations!</h1>
+            <h2>
+              You made the <strong>{formatted.format(milestone)}</strong>th click!
+            </h2>
+            {/* Future: make a form when filled send with Mailjet */}
+            <p>
+              Email a screenshot of this window to john_praesto@hotmail.com and wish for a charity or a non-profit association to get a {total / 1000} SEK donation from me
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 id="milestone-title">Milestone reached</h1>
+            <h2>
+              Someone just made the <strong>{formatted.format(milestone)}</strong>th click!
+            </h2>
+          </>
+        )}
+        {/* the two diffirent modals will need diffirent close buttons */}
+        <div className="modal-actions"> 
           <button className="modal-close" onClick={handleCloseClick}>
             {confirmClose
               ? 'Did you take a print screen? You will not see this window again.'
@@ -124,7 +137,7 @@ function App() {
     }
   }, [])
 
-  const [milestoneModal, setMilestoneModal] = useState({ open: false, milestone: null, total: null })
+  const [milestoneModal, setMilestoneModal] = useState({ open: false, milestone: null, total: null, variant: 'other' })
 
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
@@ -400,6 +413,18 @@ function App() {
         return prev
       })
     })
+
+    connection.on('milestoneReached', (payload) => {
+      if (!payload?.milestone) return
+
+      // Dedupe (prevents the clicker from getting both HTTP + SignalR modals)
+      setMilestoneModal({
+        open: true,
+        milestone: payload.milestone,
+        total: payload.total ?? null,
+        variant: 'other'
+      })
+    })
     
   connection.start().catch(err => console.error('SignalR start failed:', err))
     return () => { connection.stop().catch(() => {}) }
@@ -416,7 +441,7 @@ function App() {
       const payload = await res.json().catch(() => null)
       setMyClicks(c => c + 1)
       if (payload?.milestoneHit) {
-        setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total })
+        setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self' })
       }
     } catch (err) {
       console.error('Failed to increment:', err)
@@ -821,7 +846,8 @@ function App() {
           open={milestoneModal.open}
           milestone={milestoneModal.milestone}
           total={milestoneModal.total}
-          onClose={() => setMilestoneModal({ open: false, milestone: null, total: null })}
+          variant={milestoneModal.variant}
+          onClose={() => setMilestoneModal({ open: false, milestone: null, total: null, variant: 'other' })}
         />
 
       <ClickProgress total={total} max={1000000}/>

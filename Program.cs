@@ -107,11 +107,17 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
         localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
     });
 
-    const int milestone = 20_350;
+    const int milestone = 20_400;
+    bool milestoneHit = totalCount == milestone;
+
+    if (milestoneHit)
+    {
+        await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
+    }
 
     return Results.Ok(new
     {
-        milestoneHit = totalCount == milestone,
+        milestoneHit,
         milestone,
         total = totalCount
     });
