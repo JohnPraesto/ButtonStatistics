@@ -71,11 +71,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 {
     var secondIndex = DateTime.UtcNow.Second;
 
-    // Cloudflare sends e.g. "SE". If unknown it can be "XX" (treat as unknown).
     var country = http.Request.Headers["CF-IPCountry"].ToString();
     if (string.IsNullOrWhiteSpace(country) || country.Length != 2)
-        country = "ZZ"; // Unknown
-
+        country = "ZZ";
     country = country.ToUpperInvariant();
 
     await using var tx = await db.Database.BeginTransactionAsync();
@@ -110,7 +108,8 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
     var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
     var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
-
+    var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
+    
     int? localWeekdayCount = null;
     if (req.LocalWeekday is int lw2 && lw2 >= 0 && lw2 <= 6)
         localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == lw2).Select(w => w.Count).SingleAsync();
@@ -128,7 +127,8 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         total = totalCount,
         localHour = new { index = req.LocalHour, count = localHourCount },
         localWeekday = (req.LocalWeekday is int lwb) ? new { index = lwb, count = localWeekdayCount } : null, // this is the third time checking if it is an int... do we need that many checks? Can not somehow the first one be sufficient?
-        localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null
+        localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null,
+        country = new { code = country, count = countryCount }
     });
 
     const int milestone = 100_000;
@@ -228,7 +228,7 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 });
 
 app.MapGet("/country-clicks", async (AppDbContext db) =>
-    Results.Ok(await db.CountryClicks.AsNoTracking().OrderBy(c => c.CountryCode).ToListAsync()));
+    Results.Ok(await db.CountryClicks.AsNoTracking().OrderByDescending(c => c.Count).ThenBy(c => c.CountryCode).ToListAsync()));
 
 app.MapFallbackToFile("index.html");
 

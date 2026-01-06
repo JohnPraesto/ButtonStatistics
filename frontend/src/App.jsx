@@ -137,6 +137,22 @@ function App() {
     }
   }, [])
 
+  const countryNameFormatter = useMemo(() => {
+    const locale = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en'
+    try {
+      return new Intl.DisplayNames([locale], { type: 'region' })
+    } catch {
+      return null
+    }
+  }, [])
+
+  const getCountryName = (code) => {
+    const upper = (code ?? '').toUpperCase()
+    if (upper === 'ZZ') return 'Unknown'
+    if (!countryNameFormatter) return upper
+    return countryNameFormatter.of(upper) ?? upper
+  }
+
   const [milestoneModal, setMilestoneModal] = useState({ open: false, milestone: null, total: null, variant: 'other' })
 
   const [seconds, setSeconds] = useState([])
@@ -148,12 +164,24 @@ function App() {
   const [localHours, setLocalHours] = useState([])
   const [localWeekdays, setLocalWeekdays] = useState([])
   const [localMonths, setLocalMonths] = useState([])
+  const [countriesByCode, setCountriesByCode] = useState([])
   const [total, setTotal] = useState(0)
 
   const [myClicks, setMyClicks] = useState(() => {
     const saved = localStorage.getItem('myClicks')
     return saved ? parseInt(saved, 10) || 0 : 0
   })
+
+  const sortedCountries = useMemo(() => {
+    // Convert { SE: 10, US: 5 } -> [{ countryCode: 'SE', count: 10 }, ...]
+    const list = Object.entries(countriesByCode).map(([countryCode, count]) => ({
+      countryCode,
+      count
+    }))
+
+    list.sort((a, b) => (b.count - a.count) || a.countryCode.localeCompare(b.countryCode))
+    return list
+  }, [countriesByCode])
 
   useEffect(() => {
     localStorage.setItem('myClicks', String(myClicks))
@@ -258,6 +286,22 @@ function App() {
     }
   }
 
+  const fetchCountries = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/country-clicks`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const next = {}
+      for (const row of (Array.isArray(data) ? data : [])) {
+        if (!row?.countryCode) continue
+        next[row.countryCode] = typeof row.count === 'number' ? row.count : 0
+      }
+      setCountriesByCode(next)
+    } catch (err) {
+      console.error('Failed to load country clicks:', err)
+    }
+  }
+
   const fetchTotal = async () => {
     try {
       const res = await fetch(`${apiUrl}/total-clicks`)
@@ -279,6 +323,7 @@ function App() {
     fetchLocalHours()
     fetchLocalWeekdays()
     fetchLocalMonths()
+    fetchCountries()
     fetchTotal()
   }, [])
 
@@ -289,55 +334,64 @@ function App() {
       .withAutomaticReconnect()
       .build()
 
-    connection.on('statsUpdated', (u) => {
-      if (u.second) {
+    connection.on('statsUpdated', (payload) => {
+      if (payload.second) {
         setSeconds(prev => {
-          const i = prev.findIndex(s => s.index === u.second.index)
+          const i = prev.findIndex(s => s.index === payload.second.index)
           if (i < 0) return prev
           const next = [...prev]
-          next[i] = { ...next[i], count: u.second.count }
+          next[i] = { ...next[i], count: payload.second.count }
           return next
         })
       }
 
-      if (typeof u.total === 'number') setTotal(u.total)
+      if (typeof payload.total === 'number') setTotal(payload.total)
 
-      if (u.localHour) {
+      if (payload.localHour) {
         setLocalHours(prev => {
-          const i = prev.findIndex(h => h.index === u.localHour.index)
+          const i = prev.findIndex(h => h.index === payload.localHour.index)
           if (i >= 0) {
             const next = [...prev]
-            if (next[i].count === u.localHour.count) return prev
-            next[i] = { ...next[i], count: u.localHour.count }
+            if (next[i].count === payload.localHour.count) return prev
+            next[i] = { ...next[i], count: payload.localHour.count }
             return next
           }
-          return [...prev, u.localHour].sort((a, b) => a.index - b.index)
+          return [...prev, payload.localHour].sort((a, b) => a.index - b.index)
         })
       }
 
-      if (u.localWeekday) {
+      if (payload.localWeekday) {
         setLocalWeekdays(prev => {
-          const i = prev.findIndex(w => w.index === u.localWeekday.index)
+          const i = prev.findIndex(w => w.index === payload.localWeekday.index)
           if (i >= 0) {
             const next = [...prev]
-            if (next[i].count === u.localWeekday.count) return prev
-            next[i] = { ...next[i], count: u.localWeekday.count }
+            if (next[i].count === payload.localWeekday.count) return prev
+            next[i] = { ...next[i], count: payload.localWeekday.count }
             return next
           }
-          return [...prev, u.localWeekday].sort((a, b) => a.index - b.index)
+          return [...prev, payload.localWeekday].sort((a, b) => a.index - b.index)
         })
       }
 
-      if (u.localMonth) {
+      if (payload.localMonth) {
         setLocalMonths(prev => {
-          const i = prev.findIndex(m => m.index === u.localMonth.index)
+          const i = prev.findIndex(m => m.index === payload.localMonth.index)
           if (i >= 0) {
             const next = [...prev]
-            if (next[i].count === u.localMonth.count) return prev
-            next[i] = { ...next[i], count: u.localMonth.count }
+            if (next[i].count === payload.localMonth.count) return prev
+            next[i] = { ...next[i], count: payload.localMonth.count }
             return next
           }
-          return [...prev, u.localMonth].sort((a, b) => a.index - b.index)
+          return [...prev, payload.localMonth].sort((a, b) => a.index - b.index)
+        })
+      }
+
+      if (payload.country?.code && typeof payload.country.count === 'number') {
+        setCountriesByCode(prev => {
+          const code = payload.country.code
+          const nextCount = payload.country.count
+          if (prev[code] === nextCount) return prev
+          return { ...prev, [code]: nextCount }
         })
       }
     })
@@ -868,7 +922,28 @@ function App() {
         <BarChart data={localHoursData} options={localHoursOptions} />
         <BarChart data={localWeekdaysData} options={localWeekdaysOptions} />
         <BarChart data={localMonthsData} options={localMonthsOptions} />
-      </div>
+
+        <h2>Clicks by country</h2>
+          <table className="country-table">
+            <thead>
+              <tr>
+                <th>Country</th>
+                <th>Clicks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCountries.map(c => (
+                <tr key={c.countryCode}>
+                  <td className="country-table__code">
+                    {getCountryName(c.countryCode)}
+                  </td>
+                  <td className="country-table__count">{c.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
 
     </>
   )

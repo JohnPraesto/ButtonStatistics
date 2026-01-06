@@ -56,12 +56,6 @@ body {
   box-shadow: 0 0 17px #3b44d1, 0 6px 16px rgba(0,0,0,.2);
 }
 
-table{
-  margin: 1.5rem auto;
-  width: min(420px, 100%);
-  border-style:solid;
-}
-
 .chart{
   width: min(1000px, 100%);
   margin: 1.5rem auto;
@@ -183,4 +177,57 @@ table{
 .modal-close:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.35);
+}
+
+.country-table {
+  width: min(1000px, 100%);
+  margin: 1.5rem auto;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(2, 6, 23, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.country-table thead th {
+  text-align: center;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.9);
+  background: rgba(30, 41, 59, 0.55);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.country-table thead th:last-child {
+  text-align: center;
+}
+
+.country-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.country-table tbody tr:nth-child(2n) td {
+  background: rgba(15, 23, 42, 0.25);
+}
+
+.country-table tbody tr:hover td {
+  background: rgba(100, 108, 255, 0.12);
+}
+
+.country-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.country-table__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.country-table__count {
+  font-weight: 700;
+  color: rgba(197, 197, 207, 0.95);
 }
