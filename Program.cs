@@ -67,9 +67,16 @@ app.UseCors("AllowFrontend");
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
-app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHub> hub, IncrementNowRequest req) =>
+app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, IncrementNowRequest req) =>
 {
     var secondIndex = DateTime.UtcNow.Second;
+
+    // Cloudflare sends e.g. "SE". If unknown it can be "XX" (treat as unknown).
+    var country = http.Request.Headers["CF-IPCountry"].ToString();
+    if (string.IsNullOrWhiteSpace(country) || country.Length != 2)
+        country = "ZZ"; // Unknown
+
+    country = country.ToUpperInvariant();
 
     await using var tx = await db.Database.BeginTransactionAsync();
 
@@ -111,15 +118,14 @@ app.MapPost("/clicks/increment-now", async (AppDbContext db, IHubContext<ClickHu
     bool milestoneHit = totalCount == milestone;
 
     if (milestoneHit)
-    {
         await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
-    }
 
     return Results.Ok(new
     {
         milestoneHit,
         milestone,
-        total = totalCount
+        total = totalCount,
+        country
     });
 
 
@@ -205,13 +211,20 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
     return Results.Ok(new { count = total.Count });
 });
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-
-app.MapGet("/debug/minutes", async (AppDbContext db) =>
+app.MapGet("/debug/geo-headers", (HttpContext http, IConfiguration cfg) =>
 {
-    // Try to load some data, and serialize what you see
-    var list = await db.Minutes.AsNoTracking().OrderBy(m => m.Index).ToListAsync();
-    return Results.Ok(list.Select(m => new { m.Index, m.Count }));
+    string H(string name) => http.Request.Headers[name].ToString();
+
+    return Results.Ok(new
+    {
+        cfIpCountry = H("CF-IPCountry"),
+        cfRay = H("CF-RAY"),
+        cfConnectingIp = H("CF-Connecting-IP"),
+        xForwardedFor = H("X-Forwarded-For"),
+        xRealIp = H("X-Real-IP"),
+        forwarded = H("Forwarded"),
+        host = http.Request.Host.ToString()
+    });
 });
 
 app.MapFallbackToFile("index.html");
