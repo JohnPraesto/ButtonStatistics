@@ -17,6 +17,7 @@ namespace ButtonStatistics
         public DbSet<LocalWeekday> LocalWeekdays { get; set; }
         public DbSet<LocalMonth> LocalMonths { get; set; }
         public DbSet<TotalClicks> TotalClicks { get; set; }
+        public DbSet<CountryClick> CountryClicks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -40,6 +41,9 @@ namespace ButtonStatistics
             builder.Entity<LocalWeekday>().Property(c => c.Index).ValueGeneratedNever();
             builder.Entity<LocalMonth>().HasKey(c => c.Index);
             builder.Entity<LocalMonth>().Property(c => c.Index).ValueGeneratedNever();
+            builder.Entity<CountryClick>().HasKey(c => c.CountryCode);
+            builder.Entity<CountryClick>().Property(c => c.CountryCode).HasColumnType("varchar(2)").HasMaxLength(2).IsUnicode(false);
+            builder.Entity<CountryClick>().Property(c => c.Count);
 
             var secondSeed = new Second[60];
             for (var i = 0; i < 60; i++)
@@ -141,7 +145,7 @@ namespace ButtonStatistics
             builder.Entity<LocalWeekday>().HasData(localWeekdaySeed);
             builder.Entity<LocalMonth>().HasData(localMonthSeed);
             builder.Entity<TotalClicks>().HasData(new TotalClicks { Id = 1, Count = 0 });
+            builder.Entity<CountryClick>().HasData(new CountryClick { CountryCode = "ZZ", Count = 0 });
         }
-
     }
 }

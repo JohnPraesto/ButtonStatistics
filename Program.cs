@@ -90,6 +90,23 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
         await db.Database.ExecuteSqlRawAsync("UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {0}", lm);
 
+    var updated = await db.Database.ExecuteSqlRawAsync(
+        "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
+
+    if (updated == 0)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO CountryClicks (CountryCode, Count) VALUES ({0}, 1)", country);
+        }
+        catch
+        {
+            // Race: another request inserted it first. Just try update again.
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
+        }
+    }
     var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
     var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
     var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
@@ -124,8 +141,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     {
         milestoneHit,
         milestone,
-        total = totalCount,
-        country
+        total = totalCount
     });
 
 
@@ -211,21 +227,8 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
     return Results.Ok(new { count = total.Count });
 });
 
-app.MapGet("/debug/geo-headers", (HttpContext http, IConfiguration cfg) =>
-{
-    string H(string name) => http.Request.Headers[name].ToString();
-
-    return Results.Ok(new
-    {
-        cfIpCountry = H("CF-IPCountry"),
-        cfRay = H("CF-RAY"),
-        cfConnectingIp = H("CF-Connecting-IP"),
-        xForwardedFor = H("X-Forwarded-For"),
-        xRealIp = H("X-Real-IP"),
-        forwarded = H("Forwarded"),
-        host = http.Request.Host.ToString()
-    });
-});
+app.MapGet("/country-clicks", async (AppDbContext db) =>
+    Results.Ok(await db.CountryClicks.AsNoTracking().OrderBy(c => c.CountryCode).ToListAsync()));
 
 app.MapFallbackToFile("index.html");
 
