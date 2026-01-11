@@ -53,17 +53,35 @@ const InfoBox = memo(function InfoBox({ open, onClose, children}) {
   )
 })
 
-const ClickProgress = memo(function ClickProgress({ total, max }) {
+const ClickProgress = memo(function ClickProgress({ total, max, markerValue, markerText}) {
   const percentage = max > 0 ? (total / max) * 100 : 0
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), []) // this makes 1000000 into 1 000 000 (more readable)
 
+
+  const markerPercentPosition = useMemo(() => {
+    if (!max || !markerValue) return null
+    const percent = (markerValue / max) * 100  // Räknar ut hur många procent in i progress baren stjärnan ska placeras
+    return Math.max(0, Math.min(100, percent))
+  }, [markerValue, max])
+
   return (
     <div className="top-progress">
-      <div className="top-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={total} aria-valuetext={`${formatted.format(total)} of ${formatted.format(max)}`} title={`${formatted.format(total)} / ${formatted.format(max)}`}>
+      <div className="top-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={total} aria-valuetext={`${formatted.format(total)} of ${formatted.format(max)}`}>
 
-        <div className="top-progress__fill" style={{ width: `${percentage}%` }}></div>
+        <div className="top-progress__clip" aria-hidden="true">
+          <div className="top-progress__fill" style={{ width: `${percentage}%` }}></div>
+        </div>
+
+        {markerPercentPosition != null && markerText ? (
+          <button type="button" className="top-progress__marker" style={{ left: `${markerPercentPosition}%` }}>
+            <img className="top-progress__marker-icon" src="/StarIcon.png" alt="" aria-hidden="true" draggable="false" />
+            <span className="top-progress__tooltip" role="tooltip">
+              {markerText}
+            </span>
+          </button>
+        ) : null}
+
         <span className="top-progress__value">Total clicks: {formatted.format(total)}</span>
-
         <span className="top-progress__label top-progress__label--min">{formatted.format(0)}</span>
         <span className="top-progress__label top-progress__label--max">{formatted.format(max)}</span>
       
@@ -964,7 +982,7 @@ function App() {
       </InfoBox>
 
       <InfoBox open={!infoDismissed2} onClose={() => setInfoDismissed2(true)}>
-        WIN A DONATION: Every 100 000th click I will donate 100 SEK. A pop up window will appear asking the lucky clicker to suggest a charity to recieve the donation. At 1 000 000 clicks I will donate 1 000 SEK!
+        WIN A DONATION: Every 100 000th click I will donate 100 SEK. A pop up window will appear asking the lucky clicker for a charity to recieve the donation. At 1 000 000 clicks I will donate 1 000 SEK!
       </InfoBox>
 
       <MilestoneModal
@@ -975,7 +993,12 @@ function App() {
           onClose={() => setMilestoneModal({ open: false, milestone: null, total: null, variant: 'other' })}
         />
 
-      <ClickProgress total={total} max={1000000}/>
+      <ClickProgress 
+        total={total} 
+        max={1000000}
+        markerValue={100000}
+        markerText="The one who makes the 100 000th click will chose a charity to recieve a donation!"
+        />
         
       <div className="sticky-header">
         <button onClick={handleClick} className="click-button">
