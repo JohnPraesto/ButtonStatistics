@@ -143,8 +143,7 @@ body {
 
 .top-progress__tooltip {
   position: absolute;
-  left: 50%;
-  /* bottom: calc(100% + 10px); */
+  left: 200px;
   transform: translateX(-50%) translateY(4px);
   opacity: 0;
   pointer-events: none;
