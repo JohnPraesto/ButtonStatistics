@@ -38,6 +38,21 @@ const BarChart = memo(function BarChart({ data, options }) {
   )
 })
 
+const InfoBox = memo(function InfoBox({ open, onClose, children}) {
+  if (!open) return null
+
+  return (
+    <div className="info-box" role="note">
+      <p className="info-box__p">
+        {children}
+        <button type="button" className="info-box__close" onClick={onClose} aria-label="Close">
+        ×
+        </button>
+      </p>
+    </div>
+  )
+})
+
 const ClickProgress = memo(function ClickProgress({ total, max }) {
   const percentage = max > 0 ? (total / max) * 100 : 0
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), []) // this makes 1000000 into 1 000 000 (more readable)
@@ -136,6 +151,54 @@ function App() {
       else mq.removeListener(onChange)
     }
   }, [])
+
+  const [infoDismissed, setInfoDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('infoBoxDismissed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const [infoDismissed2, setInfoDismissed2] = useState(() => {
+    try {
+      return localStorage.getItem('infoBoxDismissed2') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('infoBoxDismissed', infoDismissed ? '1' : '0')
+    } catch {
+      // ignore
+    }
+  }, [infoDismissed])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('infoBoxDismissed2', infoDismissed2 ? '1' : '0')
+    } catch {
+      // ignore
+    }
+  }, [infoDismissed2])
+
+  const scrollToTop = () => {
+    if (typeof window === 'undefined') return
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleAboutClick = () => {
+    const anyDismissed = infoDismissed || infoDismissed2
+    if (anyDismissed) {
+      setInfoDismissed(false)
+      setInfoDismissed2(false)
+      requestAnimationFrame(scrollToTop)
+      return
+    }
+    scrollToTop()
+  }
 
   const countryNameFormatter = useMemo(() => {
     const locale = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en'
@@ -896,6 +959,14 @@ function App() {
 
   return (
     <>
+      <InfoBox open={!infoDismissed} onClose={() => setInfoDismissed(true)}>
+        Generate real time statistics globally by clicking the button. View charts of recent clicks, clicks by local hour, weekday, month, and country.
+      </InfoBox>
+
+      <InfoBox open={!infoDismissed2} onClose={() => setInfoDismissed2(true)}>
+        WIN A DONATION: Every 100 000th click I will donate 100 SEK. A pop up window will appear asking the lucky clicker to suggest a charity to recieve the donation. At 1 000 000 clicks I will donate 1 000 SEK!
+      </InfoBox>
+
       <MilestoneModal
           open={milestoneModal.open}
           milestone={milestoneModal.milestone}
@@ -924,27 +995,32 @@ function App() {
         <BarChart data={localMonthsData} options={localMonthsOptions} />
 
         <h2>Clicks by country</h2>
-          <table className="country-table">
-            <thead>
-              <tr>
-                <th>Country</th>
-                <th>Clicks</th>
+        <table className="country-table">
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th>Clicks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedCountries.map(c => (
+              <tr key={c.countryCode}>
+                <td className="country-table__code">
+                  {getCountryName(c.countryCode)}
+                </td>
+                <td className="country-table__count">{c.count}</td>
               </tr>
-            </thead>
-            <tbody>
-              {sortedCountries.map(c => (
-                <tr key={c.countryCode}>
-                  <td className="country-table__code">
-                    {getCountryName(c.countryCode)}
-                  </td>
-                  <td className="country-table__count">{c.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
 
+        <button type="button" className="about-button" onClick={handleAboutClick}>
+          About
+        </button>
 
+        <p>Created by John Praesto</p>
+
+      </div>
     </>
   )
 }

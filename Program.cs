@@ -109,7 +109,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
     var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
     var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
-    
+
     int? localWeekdayCount = null;
     if (req.LocalWeekday is int lw2 && lw2 >= 0 && lw2 <= 6)
         localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == lw2).Select(w => w.Count).SingleAsync();
