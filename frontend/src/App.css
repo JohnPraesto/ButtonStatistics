@@ -38,9 +38,71 @@ body {
 .click-button {
   width: clamp(140px, 45vw, 200px);
   height: clamp(140px, 45vw, 200px);
+  margin-bottom: 10px;
   border-radius: 50%;
   font-size: clamp(20px, 6vw, 30px);
   touch-action: manipulation; /* prevents double-tap zoom on supported mobile browsers */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 40%, #4338ca 100%);
+  border: 3px solid rgba(129, 140, 248, 0.4);
+  box-shadow: 
+    0 8px 16px rgba(99, 102, 241, 0.35),
+    0 4px 8px rgba(0, 0, 0, 0.2),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 700;
+  color: #e0e7ff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.click-button::before {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 15%;
+  right: 15%;
+  height: 30%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.click-button:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #7581e7 0%, #595bdf 40%, #443dd1 100%);
+  border-color: rgba(129, 140, 248, 0.6);
+  box-shadow: 
+    0 8px 16px rgba(99, 102, 241, 0.45),
+    0 4px 9px rgba(0, 0, 0, 0.25),
+    0 0 30px rgba(100, 108, 255, 0.35),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.15),
+    inset 0 2px 4px rgba(255, 255, 255, 0.25);
+}
+
+.click-button:active {
+  transform: translateY(2px);
+  background: linear-gradient(135deg, #5658d6 0%, #443dcf 40%, #392ead 100%);
+  box-shadow: 
+    0 4px 8px rgba(99, 102, 241, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.15);
+}
+
+
+
+/* Gammal knapp design */
+/* .click-button {
+  width: clamp(140px, 45vw, 200px);
+  height: clamp(140px, 45vw, 200px);
+  border-radius: 50%;
+  font-size: clamp(20px, 6vw, 30px);
+  touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -58,7 +120,9 @@ body {
 .chart{
   width: min(1000px, 100%);
   margin: 1.5rem auto;
-}
+} */
+
+
 
 .chart canvas {
   max-width: 100%;
