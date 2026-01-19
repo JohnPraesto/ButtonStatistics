@@ -1,24 +1,25 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
  * Cloudflare Turnstile component for bot verification.
  * Renders the Turnstile widget and handles token verification.
+ * Uses refs for callbacks to prevent re-rendering on parent updates.
  */
 export default function Turnstile({ siteKey, onVerify, onError, onExpire }) {
   const containerRef = useRef(null)
   const widgetIdRef = useRef(null)
-
-  const handleVerify = useCallback((token) => {
-    onVerify?.(token)
-  }, [onVerify])
-
-  const handleError = useCallback(() => {
-    onError?.()
-  }, [onError])
-
-  const handleExpire = useCallback(() => {
-    onExpire?.()
-  }, [onExpire])
+  
+  // Store callbacks in refs to avoid re-creating widget when parent re-renders
+  const onVerifyRef = useRef(onVerify)
+  const onErrorRef = useRef(onError)
+  const onExpireRef = useRef(onExpire)
+  
+  // Keep refs up to date
+  useEffect(() => {
+    onVerifyRef.current = onVerify
+    onErrorRef.current = onError
+    onExpireRef.current = onExpire
+  }, [onVerify, onError, onExpire])
 
   useEffect(() => {
     if (!siteKey || !containerRef.current) return
@@ -31,22 +32,17 @@ export default function Turnstile({ siteKey, onVerify, onError, onExpire }) {
         return
       }
 
-      // Clear any existing widget
+      // Don't re-render if widget already exists
       if (widgetIdRef.current !== null) {
-        try {
-          window.turnstile.remove(widgetIdRef.current)
-        } catch {
-          // Widget may already be removed
-        }
-        widgetIdRef.current = null
+        return
       }
 
       // Render new widget
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: siteKey,
-        callback: handleVerify,
-        'error-callback': handleError,
-        'expired-callback': handleExpire,
+        callback: (token) => onVerifyRef.current?.(token),
+        'error-callback': () => onErrorRef.current?.(),
+        'expired-callback': () => onExpireRef.current?.(),
         theme: 'dark',
         size: 'normal'
       })
@@ -64,14 +60,7 @@ export default function Turnstile({ siteKey, onVerify, onError, onExpire }) {
         widgetIdRef.current = null
       }
     }
-  }, [siteKey, handleVerify, handleError, handleExpire])
-
-  // Method to reset the widget (can be called via ref)
-  const reset = useCallback(() => {
-    if (widgetIdRef.current !== null && typeof window.turnstile !== 'undefined') {
-      window.turnstile.reset(widgetIdRef.current)
-    }
-  }, [])
+  }, [siteKey]) // Only re-run when siteKey changes
 
   return (
     <div className="turnstile-container">
