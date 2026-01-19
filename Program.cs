@@ -225,7 +225,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 100_120; // ÄNDRA TILL 100 000 EFTER TESTER KLARA
+    const int milestone = 100_130; // ÄNDRA TILL 100 000 EFTER TESTER KLARA
     bool milestoneHit = totalCount == milestone;
 
     if (milestoneHit)

@@ -1206,8 +1206,8 @@ function App() {
       <ClickProgress 
         total={total} 
         max={1000000}
-        markerValue={100000}
-        markerText="The one who makes the 100 000th click will chose a charity to recieve a donation!"
+        markerValue={200000}
+        markerText="The one who makes the 200 000th click will chose a charity to recieve a donation!"
         />
         
       <div className="sticky-header">
