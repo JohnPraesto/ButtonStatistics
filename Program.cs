@@ -1,5 +1,6 @@
 using ButtonStatistics;
 using ButtonStatistics.Models;
+using ButtonStatistics.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -61,6 +62,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR().AddJsonProtocol(o => { o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull; }); // The JsonProtocol thing reduces signal payload when any property is null, it will not send the null properties. However I'm not really sure what consequences not sending null properties might have.
 builder.Services.AddHostedService<RollService>();
 
+// Turnstile and rate limiting services
+builder.Services.AddSingleton<ClickRateLimitService>();
+builder.Services.AddHttpClient<TurnstileService>();
+
 var app = builder.Build();
 
 // Apply pending migrations on startup (both local and Azure) den här behöver kontrolleras om den ens funkar... uppdatera via consolen annars och ta bort detta 
@@ -93,8 +98,71 @@ app.UseRateLimiter();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
-app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, IncrementNowRequest req) =>
+// Endpoint to check if Turnstile is required for the current client
+app.MapGet("/clicks/turnstile-status", (HttpContext http, ClickRateLimitService rateLimiter) =>
 {
+    var clientIp = GetClientKey(http);
+    var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
+    
+    return Results.Ok(new
+    {
+        requiresTurnstile,
+        minuteCount,
+        hourCount,
+        sustainedActivity,
+        minuteThreshold = 5, // ändra till 500 efter online testat
+        hourThreshold = 20_000,
+        sustainedHoursThreshold = 2,
+        siteKey = requiresTurnstile ? (http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? "") : null
+    });
+});
+
+app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, IncrementNowRequestWithTurnstile req) =>
+{
+    var clientIp = GetClientKey(http);
+    
+    // Check if this client has exceeded thresholds
+    var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
+    
+    if (requiresTurnstile)
+    {
+        // Turnstile verification required
+        if (string.IsNullOrWhiteSpace(req.TurnstileToken))
+        {
+            var reason = sustainedActivity 
+                ? "You've been clicking for over 2 hours. Please verify you're human."
+                : "Please complete the verification to continue clicking.";
+            
+            return Results.Json(new
+            {
+                error = "turnstile_required",
+                message = reason,
+                siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? "",
+                minuteCount,
+                hourCount,
+                sustainedActivity
+            }, statusCode: 403);
+        }
+        
+        // Verify the Turnstile token
+        var isValid = await turnstileService.VerifyTokenAsync(req.TurnstileToken, clientIp);
+        if (!isValid)
+        {
+            return Results.Json(new
+            {
+                error = "turnstile_invalid",
+                message = "Verification failed. Please try again.",
+                siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? ""
+            }, statusCode: 403);
+        }
+        
+        // Reset their counter after successful verification
+        rateLimiter.ResetAfterVerification(clientIp);
+    }
+    
+    // Record this click (for rate limiting tracking)
+    var (newRequiresTurnstile, newMinuteCount, newHourCount, newSustainedActivity) = rateLimiter.RecordClick(clientIp);
+    
     var secondIndex = DateTime.UtcNow.Second;
 
     var country = http.Request.Headers["CF-IPCountry"].ToString();
@@ -167,7 +235,18 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     {
         milestoneHit,
         milestone,
-        total = totalCount
+        total = totalCount,
+        // Rate limit info so frontend knows when to show Turnstile
+        rateLimit = new
+        {
+            requiresTurnstile = newRequiresTurnstile,
+            minuteCount = newMinuteCount,
+            hourCount = newHourCount,
+            sustainedActivity = newSustainedActivity,
+            minuteThreshold = 5, // change to 500 after test online
+            hourThreshold = 20_000,
+            sustainedHoursThreshold = 2
+        }
     });
 
 

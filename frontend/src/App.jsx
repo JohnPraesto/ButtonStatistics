@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, memo} from 'react'
 import './App.css'
 import * as signalR from '@microsoft/signalr'
 import { Line, Bar } from 'react-chartjs-2'
+import Turnstile from './Turnstile'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -252,6 +253,12 @@ function App() {
     const saved = localStorage.getItem('myClicks')
     return saved ? parseInt(saved, 10) || 0 : 0
   })
+
+  // Turnstile state for bot protection
+  const [turnstileRequired, setTurnstileRequired] = useState(false)
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState(null)
+  const [turnstileToken, setTurnstileToken] = useState(null)
+  const [rateLimitInfo, setRateLimitInfo] = useState({ minuteCount: 0, hourCount: 0, sustainedActivity: false })
 
   const sortedCountries = useMemo(() => {
     // Convert { SE: 10, US: 5 } -> [{ countryCode: 'SE', count: 10 }, ...]
@@ -567,13 +574,72 @@ function App() {
 
   const handleClick = async () => {
     try {
+      const requestBody = { 
+        localHour: new Date().getHours(), 
+        localWeekday: new Date().getDay(), 
+        localMonth: new Date().getMonth(),
+        turnstileToken: turnstileToken // Include token if available
+      }
+      
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ localHour: new Date().getHours(), localWeekday: new Date().getDay(), localMonth: new Date().getMonth() }) 
+        body: JSON.stringify(requestBody) 
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
       const payload = await res.json().catch(() => null)
+      
+      // Handle Turnstile requirement
+      if (res.status === 403 && payload?.error === 'turnstile_required') {
+        setTurnstileRequired(true)
+        setTurnstileSiteKey(payload.siteKey)
+        setRateLimitInfo({ 
+          minuteCount: payload.minuteCount, 
+          hourCount: payload.hourCount,
+          sustainedActivity: payload.sustainedActivity 
+        })
+        return
+      }
+      
+      if (res.status === 403 && payload?.error === 'turnstile_invalid') {
+        // Token was invalid, show widget again
+        setTurnstileToken(null)
+        setTurnstileSiteKey(payload.siteKey)
+        return
+      }
+      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      // Clear turnstile state on successful click
+      if (turnstileToken) {
+        setTurnstileToken(null)
+        setTurnstileRequired(false)
+      }
+      
+      // Update rate limit info from response
+      if (payload?.rateLimit) {
+        setRateLimitInfo({ 
+          minuteCount: payload.rateLimit.minuteCount, 
+          hourCount: payload.rateLimit.hourCount,
+          sustainedActivity: payload.rateLimit.sustainedActivity 
+        })
+        if (payload.rateLimit.requiresTurnstile) {
+          setTurnstileRequired(true)
+          // Fetch the site key if we don't have it
+          if (!turnstileSiteKey) {
+            try {
+              const statusRes = await fetch(`${apiUrl}/clicks/turnstile-status`)
+              const statusData = await statusRes.json()
+              if (statusData.siteKey) {
+                setTurnstileSiteKey(statusData.siteKey)
+              }
+            } catch {
+              // Ignore fetch error
+            }
+          }
+        }
+      }
+      
       setMyClicks(c => c + 1)
       if (payload?.milestoneHit) {
         setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self' })
@@ -581,6 +647,12 @@ function App() {
     } catch (err) {
       console.error('Failed to increment:', err)
     }
+  }
+
+  // Handle Turnstile verification success
+  const handleTurnstileVerify = (token) => {
+    setTurnstileToken(token)
+    setTurnstileRequired(false)
   }
 
   const currentUtcSecond = new Date().getUTCSeconds();
@@ -992,6 +1064,31 @@ function App() {
           variant={milestoneModal.variant}
           onClose={() => setMilestoneModal({ open: false, milestone: null, total: null, variant: 'other' })}
         />
+
+      {/* Turnstile verification modal for bot protection */}
+      {turnstileRequired && turnstileSiteKey && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal turnstile-modal" role="dialog" aria-modal="true" aria-labelledby="turnstile-title">
+            <h2 id="turnstile-title">Are you human?</h2>
+            <p className="turnstile-info">
+              {rateLimitInfo.sustainedActivity ? (
+                <>You&apos;ve been clicking for over 10 hours straight! That&apos;s impressive dedication (or suspicious behavior).</>
+              ) : (
+                <>You&apos;ve been clicking a lot! ({rateLimitInfo.minuteCount} clicks/min, {rateLimitInfo.hourCount} clicks/hr)</>
+              )}
+              <br />
+              Please verify you&apos;re not a bot to continue.
+            </p>
+            <Turnstile 
+              siteKey={turnstileSiteKey} 
+              onVerify={handleTurnstileVerify}
+              onError={() => console.error('Turnstile error')}
+              onExpire={() => setTurnstileToken(null)}
+            />
+            <p className="turnstile-hint">Complete the challenge above to continue clicking.</p>
+          </div>
+        </div>
+      )}
 
       <ClickProgress 
         total={total} 

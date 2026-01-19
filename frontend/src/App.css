@@ -287,6 +287,37 @@ body {
   box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.35);
 }
 
+/* Turnstile modal styles */
+.turnstile-modal {
+  text-align: center;
+  max-width: 400px;
+}
+
+.turnstile-modal h2 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  color: #e2e8f0;
+}
+
+.turnstile-info {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.turnstile-container {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.turnstile-hint {
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-top: 1rem;
+}
+
 .country-table {
   width: min(1000px, 100%);
   margin: 1.5rem auto;
