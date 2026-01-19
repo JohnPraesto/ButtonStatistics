@@ -3,6 +3,7 @@ using ButtonStatistics.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,30 @@ builder.Services.AddDbContextPool<AppDbContext>(options =>
     {
         options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnection"));
     }
+});
+
+static string GetClientKey(HttpContext httpContext)
+{
+    var cloudflareIp = httpContext.Request.Headers["CF-Connecting-IP"].ToString();
+    if (!string.IsNullOrWhiteSpace(cloudflareIp)) return cloudflareIp;
+
+    return httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("clicks-per-second", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: GetClientKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromSeconds(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddCors(options =>
@@ -64,6 +89,7 @@ app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
@@ -192,7 +218,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     // await hub.Clients.All.SendAsync("totalUpdated", new { count = total.Count });
     // await hub.Clients.All.SendAsync("localHourUpdated", new { index = req.LocalHour, count = localHour.Count });
     // return Results.Ok();
-});
+}).RequireRateLimiting("clicks-per-second");
 
 app.MapGet("/seconds", async (AppDbContext db) =>
     Results.Ok(await db.Seconds.AsNoTracking().OrderBy(s => s.Index).ToListAsync()));
