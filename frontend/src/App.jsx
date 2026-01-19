@@ -650,9 +650,52 @@ function App() {
   }
 
   // Handle Turnstile verification success
-  const handleTurnstileVerify = (token) => {
+  const handleTurnstileVerify = async (token) => {
     setTurnstileToken(token)
-    setTurnstileRequired(false)
+    
+    // Immediately try to make a click with the token
+    try {
+      const requestBody = { 
+        localHour: new Date().getHours(), 
+        localWeekday: new Date().getDay(), 
+        localMonth: new Date().getMonth(),
+        turnstileToken: token
+      }
+      
+      const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody) 
+      })
+      
+      const payload = await res.json().catch(() => null)
+      
+      if (res.ok) {
+        // Success! Clear turnstile state
+        setTurnstileToken(null)
+        setTurnstileRequired(false)
+        setMyClicks(c => c + 1)
+        
+        // Update rate limit info
+        if (payload?.rateLimit) {
+          setRateLimitInfo({ 
+            minuteCount: payload.rateLimit.minuteCount, 
+            hourCount: payload.rateLimit.hourCount,
+            sustainedActivity: payload.rateLimit.sustainedActivity 
+          })
+        }
+        
+        if (payload?.milestoneHit) {
+          setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self' })
+        }
+      } else {
+        // Verification failed, reset token so they can try again
+        setTurnstileToken(null)
+      }
+    } catch (err) {
+      console.error('Failed to verify click:', err)
+      setTurnstileToken(null)
+    }
   }
 
   const currentUtcSecond = new Date().getUTCSeconds();
