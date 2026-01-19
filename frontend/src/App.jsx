@@ -649,17 +649,21 @@ function App() {
     }
   }
 
-  // Handle Turnstile verification success
-  const handleTurnstileVerify = async (token) => {
+  // Handle Turnstile verification success - just store the token, require manual continue
+  const handleTurnstileVerify = (token) => {
     setTurnstileToken(token)
+  }
+  
+  // Handle manual continue after Turnstile verification
+  const handleTurnstileContinue = async () => {
+    if (!turnstileToken) return
     
-    // Immediately try to make a click with the token
     try {
       const requestBody = { 
         localHour: new Date().getHours(), 
         localWeekday: new Date().getDay(), 
         localMonth: new Date().getMonth(),
-        turnstileToken: token
+        turnstileToken: turnstileToken
       }
       
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
@@ -1122,13 +1126,29 @@ function App() {
               <br />
               Please verify you&apos;re not a bot to continue.
             </p>
-            <Turnstile 
-              siteKey={turnstileSiteKey} 
-              onVerify={handleTurnstileVerify}
-              onError={() => console.error('Turnstile error')}
-              onExpire={() => setTurnstileToken(null)}
-            />
-            <p className="turnstile-hint">Complete the challenge above to continue clicking.</p>
+            
+            {!turnstileToken ? (
+              <>
+                <Turnstile 
+                  siteKey={turnstileSiteKey} 
+                  onVerify={handleTurnstileVerify}
+                  onError={() => console.error('Turnstile error')}
+                  onExpire={() => setTurnstileToken(null)}
+                />
+                <p className="turnstile-hint">Complete the verification above.</p>
+              </>
+            ) : (
+              <>
+                <p className="turnstile-success">✓ Verification complete!</p>
+                <button 
+                  type="button" 
+                  className="turnstile-continue-btn"
+                  onClick={handleTurnstileContinue}
+                >
+                  Continue Clicking
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
