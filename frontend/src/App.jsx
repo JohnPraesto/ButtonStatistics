@@ -92,43 +92,113 @@ const ClickProgress = memo(function ClickProgress({ total, max, markerValue, mar
 })
 
 const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, variant, onClose }) {
+  const apiUrl = import.meta.env.VITE_API_URL ?? ''
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), [])
-  const [confirmClose, setConfirmClose] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
-    if (open) setConfirmClose(false)
+    if (open) {
+      setName('')
+      setEmail('')
+      setMessage('')
+      setSubmitted(false)
+      setIsSubmitting(false)
+    }
   }, [open])
 
   if (!open) return null
 
-  const handleCloseClick = () => {
-    if (variant === 'self' && !confirmClose) {
-      setConfirmClose(true)
-      return
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      await fetch(`${apiUrl}/donation-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name || null,
+          email: email || null,
+          message: message || null
+        })
+      })
+      setSubmitted(true)
+    } catch (err) {
+      console.error('Failed to submit donation request:', err)
+    } finally {
+      setIsSubmitting(false)
     }
-    onClose()
   }
 
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="modal"
+        className="modal milestone-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="milestone-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-
         {variant === 'self' ? (
           <>
             <h1 id="milestone-title">Congratulations!</h1>
             <h2>
               You made the <strong>{formatted.format(milestone)}</strong>th click!
             </h2>
-            {/* Future: make a form when filled send with Mailjet */}
-            <p>
-              Email a screenshot of this window to john_praesto@hotmail.com and wish for a charity or a non-profit association to get a {total / 1000} SEK donation from me
-            </p>
+            {!submitted ? (
+              <>
+                <p className="milestone-description">
+                  Wish for a charity or a non-profit association to get a 100 SEK donation from me!
+                </p>
+                <form className="milestone-form" onSubmit={handleSubmit}>
+                  <div className="milestone-form__field">
+                    <label htmlFor="donation-name">Name (optional)</label>
+                    <input
+                      id="donation-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                    />
+                  </div>
+                  <div className="milestone-form__field">
+                    <label htmlFor="donation-email">Email (optional)</label>
+                    <input
+                      id="donation-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                    />
+                  </div>
+                  <div className="milestone-form__field">
+                    <label htmlFor="donation-message">Message (optional)</label>
+                    <textarea
+                      id="donation-message"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Which charity should receive the donation?"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="modal-actions">
+                    <button type="submit" className="modal-close" disabled={isSubmitting}>
+                      {isSubmitting ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <>
+                <p className="milestone-success">Thank you! Your request has been submitted.</p>
+                <div className="modal-actions">
+                  <button className="modal-close" onClick={onClose}>Close</button>
+                </div>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -136,16 +206,11 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
             <h2>
               Someone just made the <strong>{formatted.format(milestone)}</strong>th click!
             </h2>
+            <div className="modal-actions">
+              <button className="modal-close" onClick={onClose}>Close</button>
+            </div>
           </>
         )}
-        {/* the two diffirent modals will need diffirent close buttons */}
-        <div className="modal-actions"> 
-          <button className="modal-close" onClick={handleCloseClick}>
-            {confirmClose
-              ? 'Did you take a print screen? You will not see this window again.'
-              : 'Close'}
-          </button>
-        </div>
       </div>
     </div>
   )

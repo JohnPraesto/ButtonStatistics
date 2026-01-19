@@ -103,7 +103,7 @@ app.MapGet("/clicks/turnstile-status", (HttpContext http, ClickRateLimitService 
 {
     var clientIp = GetClientKey(http);
     var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
-    
+
     return Results.Ok(new
     {
         requiresTurnstile,
@@ -120,19 +120,19 @@ app.MapGet("/clicks/turnstile-status", (HttpContext http, ClickRateLimitService 
 app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, IncrementNowRequestWithTurnstile req) =>
 {
     var clientIp = GetClientKey(http);
-    
+
     // Check if this client has exceeded thresholds
     var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
-    
+
     if (requiresTurnstile)
     {
         // Turnstile verification required
         if (string.IsNullOrWhiteSpace(req.TurnstileToken))
         {
-            var reason = sustainedActivity 
+            var reason = sustainedActivity
                 ? "You've been clicking for over 2 hours. Please verify you're human."
                 : "Please complete the verification to continue clicking.";
-            
+
             return Results.Json(new
             {
                 error = "turnstile_required",
@@ -143,7 +143,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
                 sustainedActivity
             }, statusCode: 403);
         }
-        
+
         // Verify the Turnstile token
         var isValid = await turnstileService.VerifyTokenAsync(req.TurnstileToken, clientIp);
         if (!isValid)
@@ -155,14 +155,14 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
                 siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? ""
             }, statusCode: 403);
         }
-        
+
         // Reset their counter after successful verification
         rateLimiter.ResetAfterVerification(clientIp);
     }
-    
+
     // Record this click (for rate limiting tracking)
     var (newRequiresTurnstile, newMinuteCount, newHourCount, newSustainedActivity) = rateLimiter.RecordClick(clientIp);
-    
+
     var secondIndex = DateTime.UtcNow.Second;
 
     var country = http.Request.Headers["CF-IPCountry"].ToString();
@@ -225,7 +225,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 100_000;
+    const int milestone = 3810; // ÄNDRA TILL 100 000 EFTER TESTER KLARA
     bool milestoneHit = totalCount == milestone;
 
     if (milestoneHit)
@@ -334,6 +334,21 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 
 app.MapGet("/country-clicks", async (AppDbContext db) =>
     Results.Ok(await db.CountryClicks.AsNoTracking().OrderByDescending(c => c.Count).ThenBy(c => c.CountryCode).ToListAsync()));
+
+app.MapPost("/donation-request", async (AppDbContext db, DonationRequest request) =>
+{
+    db.DonationRequests.Add(request);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/donation-request/{request.Id}", request);
+});
+
+app.MapGet("/donation-request", async (AppDbContext db) =>
+{
+    var requests = await db.DonationRequests.AsNoTracking().OrderByDescending(r => r.Id).ToListAsync();
+
+    return Results.Ok(requests);
+});
 
 app.MapFallbackToFile("index.html");
 

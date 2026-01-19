@@ -18,6 +18,7 @@ namespace ButtonStatistics
         public DbSet<LocalMonth> LocalMonths { get; set; }
         public DbSet<TotalClicks> TotalClicks { get; set; }
         public DbSet<CountryClick> CountryClicks { get; set; }
+        public DbSet<DonationRequest> DonationRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -44,6 +45,7 @@ namespace ButtonStatistics
             builder.Entity<CountryClick>().HasKey(c => c.CountryCode);
             builder.Entity<CountryClick>().Property(c => c.CountryCode).HasColumnType("varchar(2)").HasMaxLength(2).IsUnicode(false);
             builder.Entity<CountryClick>().Property(c => c.Count);
+            builder.Entity<DonationRequest>().HasKey(d => d.Id);
 
             var secondSeed = new Second[60];
             for (var i = 0; i < 60; i++)

@@ -287,6 +287,73 @@ body {
   box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.35);
 }
 
+/* Milestone modal styles */
+.milestone-modal {
+  max-width: 420px;
+  width: 90vw;
+}
+
+.milestone-description {
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.milestone-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.milestone-form__field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.milestone-form__field label {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.milestone-form__field input,
+.milestone-form__field textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.55);
+  color: #e2e8f0;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  box-sizing: border-box;
+}
+
+.milestone-form__field input::placeholder,
+.milestone-form__field textarea::placeholder {
+  color: #64748b;
+}
+
+.milestone-form__field input:focus,
+.milestone-form__field textarea:focus {
+  outline: none;
+  border-color: rgba(100, 108, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.18);
+}
+
+.milestone-form__field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.milestone-success {
+  color: #22c55e;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1.5rem 0;
+}
+
 /* Turnstile modal styles */
 .turnstile-modal {
   text-align: center;
