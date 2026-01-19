@@ -110,7 +110,7 @@ app.MapGet("/clicks/turnstile-status", (HttpContext http, ClickRateLimitService 
         minuteCount,
         hourCount,
         sustainedActivity,
-        minuteThreshold = 5, // ändra till 500 efter online testat
+        minuteThreshold = 500,
         hourThreshold = 20_000,
         sustainedHoursThreshold = 2,
         siteKey = requiresTurnstile ? (http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? "") : null
@@ -243,7 +243,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
             minuteCount = newMinuteCount,
             hourCount = newHourCount,
             sustainedActivity = newSustainedActivity,
-            minuteThreshold = 5, // change to 500 after test online
+            minuteThreshold = 500,
             hourThreshold = 20_000,
             sustainedHoursThreshold = 2
         }

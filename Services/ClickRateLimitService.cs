@@ -11,7 +11,7 @@ namespace ButtonStatistics.Services;
 /// </summary>
 public class ClickRateLimitService
 {
-    private const int MinuteThreshold = 5; // change to 500 after online test
+    private const int MinuteThreshold = 500;
     private const int HourThreshold = 20_000;
     private static readonly TimeSpan SustainedActivityThreshold = TimeSpan.FromHours(2);
     private static readonly TimeSpan SessionGapThreshold = TimeSpan.FromMinutes(30); // Gap that resets session
