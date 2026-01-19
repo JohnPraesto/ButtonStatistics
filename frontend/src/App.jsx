@@ -573,12 +573,17 @@ function App() {
   }, [apiUrl])
 
   const handleClick = async () => {
+    // Block clicks entirely when Turnstile modal is showing
+    if (turnstileRequired) {
+      return
+    }
+    
     try {
       const requestBody = { 
         localHour: new Date().getHours(), 
         localWeekday: new Date().getDay(), 
-        localMonth: new Date().getMonth(),
-        turnstileToken: turnstileToken // Include token if available
+        localMonth: new Date().getMonth()
+        // Never include token here - only use via Continue button
       }
       
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
@@ -610,12 +615,6 @@ function App() {
       
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       
-      // Clear turnstile state on successful click
-      if (turnstileToken) {
-        setTurnstileToken(null)
-        setTurnstileRequired(false)
-      }
-      
       // Update rate limit info from response
       if (payload?.rateLimit) {
         setRateLimitInfo({ 
@@ -623,21 +622,7 @@ function App() {
           hourCount: payload.rateLimit.hourCount,
           sustainedActivity: payload.rateLimit.sustainedActivity 
         })
-        if (payload.rateLimit.requiresTurnstile) {
-          setTurnstileRequired(true)
-          // Fetch the site key if we don't have it
-          if (!turnstileSiteKey) {
-            try {
-              const statusRes = await fetch(`${apiUrl}/clicks/turnstile-status`)
-              const statusData = await statusRes.json()
-              if (statusData.siteKey) {
-                setTurnstileSiteKey(statusData.siteKey)
-              }
-            } catch {
-              // Ignore fetch error
-            }
-          }
-        }
+        // Note: We handle turnstile requirement via 403 response, not via rateLimit flag
       }
       
       setMyClicks(c => c + 1)
