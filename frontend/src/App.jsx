@@ -116,7 +116,7 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await fetch(`${apiUrl}/donation-request`, {
+      const res = await fetch(`${apiUrl}/donation-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,6 +125,10 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
           message: message || null
         })
       })
+      if (!res.ok) {
+        console.error('Donation request failed with status:', res.status)
+        return
+      }
       setSubmitted(true)
     } catch (err) {
       console.error('Failed to submit donation request:', err)
@@ -624,12 +628,19 @@ function App() {
     connection.on('milestoneReached', (payload) => {
       if (!payload?.milestone) return
 
-      // Dedupe (prevents the clicker from getting both HTTP + SignalR modals)
-      setMilestoneModal({
-        open: true,
-        milestone: payload.milestone,
-        total: payload.total ?? null,
-        variant: 'other'
+      // Only show 'other' modal if we're not already showing a 'self' modal for this milestone
+      // This prevents the SignalR broadcast from overwriting the HTTP response's 'self' variant
+      setMilestoneModal(prev => {
+        // If already showing this milestone as 'self', don't overwrite
+        if (prev.open && prev.milestone === payload.milestone && prev.variant === 'self') {
+          return prev
+        }
+        return {
+          open: true,
+          milestone: payload.milestone,
+          total: payload.total ?? null,
+          variant: 'other'
+        }
       })
     })
     
