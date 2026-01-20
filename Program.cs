@@ -102,6 +102,17 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 {
     var clientIp = GetClientKey(http);
 
+    // Check if click was triggered by a script (isTrusted = false)
+    if (req.IsTrusted == false)
+    {
+        return Results.Json(new
+        {
+            error = "turnstile_required",
+            message = "Please complete the verification to continue clicking.",
+            siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? ""
+        }, statusCode: 403);
+    }
+
     // Check if this client has exceeded thresholds
     var (requiresTurnstile, rateLimitSecondCount, rateLimitMinuteCount, rateLimitHourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
 
@@ -224,7 +235,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
             sustainedActivity = newSustainedActivity,
             secondThreshold = 15,
             minuteThreshold = 500,
-            hourThreshold = 20_000,
+            hourThreshold = 15_000,
             sustainedHoursThreshold = 2
         }
     });

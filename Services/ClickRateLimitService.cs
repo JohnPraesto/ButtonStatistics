@@ -7,14 +7,14 @@ namespace ButtonStatistics.Services;
 /// Thresholds:
 /// - 15 clicks/second triggers Turnstile (matches the rate limiter)
 /// - 500 clicks/minute triggers Turnstile
-/// - 20,000 clicks/hour triggers Turnstile  
+/// - 15,000 clicks/hour triggers Turnstile  
 /// - 2+ hours of continuous clicking triggers Turnstile (catches slow bots)
 /// </summary>
 public class ClickRateLimitService
 {
     private const int SecondThreshold = 15; // Same as the rate limiter in Program.cs
     private const int MinuteThreshold = 500;
-    private const int HourThreshold = 20_000;
+    private const int HourThreshold = 15_000;
     private static readonly TimeSpan SustainedActivityThreshold = TimeSpan.FromHours(2);
     private static readonly TimeSpan SessionGapThreshold = TimeSpan.FromMinutes(30); // Gap that resets session
 

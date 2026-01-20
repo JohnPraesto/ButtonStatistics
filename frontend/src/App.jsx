@@ -648,7 +648,7 @@ function App() {
     return () => { connection.stop().catch(() => {}) }
   }, [apiUrl])
 
-  const handleClick = async () => {
+  const handleClick = async (event) => {
     // Block clicks entirely when Turnstile modal is showing
     if (turnstileRequired) {
       return
@@ -658,7 +658,8 @@ function App() {
       const requestBody = { 
         localHour: new Date().getHours(), 
         localWeekday: new Date().getDay(), 
-        localMonth: new Date().getMonth()
+        localMonth: new Date().getMonth(),
+        isTrusted: event?.isTrusted ?? false // Detect script-triggered clicks
         // Never include token here - only use via Continue button
       }
       
