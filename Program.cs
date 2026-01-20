@@ -98,48 +98,26 @@ app.UseRateLimiter();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
-// Endpoint to check if Turnstile is required for the current client
-app.MapGet("/clicks/turnstile-status", (HttpContext http, ClickRateLimitService rateLimiter) =>
-{
-    var clientIp = GetClientKey(http);
-    var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
-
-    return Results.Ok(new
-    {
-        requiresTurnstile,
-        minuteCount,
-        hourCount,
-        sustainedActivity,
-        minuteThreshold = 500,
-        hourThreshold = 20_000,
-        sustainedHoursThreshold = 2,
-        siteKey = requiresTurnstile ? (http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? "") : null
-    });
-});
-
 app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, IncrementNowRequestWithTurnstile req) =>
 {
     var clientIp = GetClientKey(http);
 
     // Check if this client has exceeded thresholds
-    var (requiresTurnstile, minuteCount, hourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
+    var (requiresTurnstile, rateLimitSecondCount, rateLimitMinuteCount, rateLimitHourCount, sustainedActivity) = rateLimiter.CheckStatus(clientIp);
 
     if (requiresTurnstile)
     {
         // Turnstile verification required
         if (string.IsNullOrWhiteSpace(req.TurnstileToken))
         {
-            var reason = sustainedActivity
-                ? "You've been clicking for over 2 hours. Please verify you're human."
-                : "Please complete the verification to continue clicking.";
-
             return Results.Json(new
             {
                 error = "turnstile_required",
-                message = reason,
+                message = "Please complete the verification to continue clicking.",
                 siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? "",
-                minuteCount,
-                hourCount,
+                secondCount = rateLimitSecondCount,
+                minuteCount = rateLimitMinuteCount,
+                hourCount = rateLimitHourCount,
                 sustainedActivity
             }, statusCode: 403);
         }
@@ -161,7 +139,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     }
 
     // Record this click (for rate limiting tracking)
-    var (newRequiresTurnstile, newMinuteCount, newHourCount, newSustainedActivity) = rateLimiter.RecordClick(clientIp);
+    var (newRequiresTurnstile, newSecondCount, newMinuteCount, newHourCount, newSustainedActivity) = rateLimiter.RecordClick(clientIp);
 
     var secondIndex = DateTime.UtcNow.Second;
 
@@ -240,9 +218,11 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         rateLimit = new
         {
             requiresTurnstile = newRequiresTurnstile,
+            secondCount = newSecondCount,
             minuteCount = newMinuteCount,
             hourCount = newHourCount,
             sustainedActivity = newSustainedActivity,
+            secondThreshold = 15,
             minuteThreshold = 500,
             hourThreshold = 20_000,
             sustainedHoursThreshold = 2

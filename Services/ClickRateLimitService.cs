@@ -5,12 +5,14 @@ namespace ButtonStatistics.Services;
 /// <summary>
 /// Tracks click counts per IP to determine when Turnstile verification is required.
 /// Thresholds:
+/// - 15 clicks/second triggers Turnstile (matches the rate limiter)
 /// - 500 clicks/minute triggers Turnstile
 /// - 20,000 clicks/hour triggers Turnstile  
 /// - 2+ hours of continuous clicking triggers Turnstile (catches slow bots)
 /// </summary>
 public class ClickRateLimitService
 {
+    private const int SecondThreshold = 15; // Same as the rate limiter in Program.cs
     private const int MinuteThreshold = 500;
     private const int HourThreshold = 20_000;
     private static readonly TimeSpan SustainedActivityThreshold = TimeSpan.FromHours(2);
@@ -28,7 +30,7 @@ public class ClickRateLimitService
     /// <summary>
     /// Records a click for the given IP and returns whether Turnstile is now required.
     /// </summary>
-    public (bool requiresTurnstile, int minuteCount, int hourCount, bool sustainedActivity) RecordClick(string clientIp)
+    public (bool requiresTurnstile, int secondCount, int minuteCount, int hourCount, bool sustainedActivity) RecordClick(string clientIp)
     {
         var now = DateTime.UtcNow;
         var tracker = _trackers.GetOrAdd(clientIp, _ => new ClickTracker(now));
@@ -43,39 +45,43 @@ public class ClickRateLimitService
             
             tracker.RecordClick(now);
             
+            var secondCount = tracker.GetSecondCount(now);
             var minuteCount = tracker.GetMinuteCount(now);
             var hourCount = tracker.GetHourCount(now);
             var sustainedActivity = tracker.IsSustainedActivity(now, SustainedActivityThreshold);
             
-            var requiresTurnstile = minuteCount >= MinuteThreshold 
+            var requiresTurnstile = secondCount >= SecondThreshold
+                                 || minuteCount >= MinuteThreshold 
                                  || hourCount >= HourThreshold 
                                  || sustainedActivity;
             
-            return (requiresTurnstile, minuteCount, hourCount, sustainedActivity);
+            return (requiresTurnstile, secondCount, minuteCount, hourCount, sustainedActivity);
         }
     }
 
     /// <summary>
     /// Checks if Turnstile is required for the given IP without recording a click.
     /// </summary>
-    public (bool requiresTurnstile, int minuteCount, int hourCount, bool sustainedActivity) CheckStatus(string clientIp)
+    public (bool requiresTurnstile, int secondCount, int minuteCount, int hourCount, bool sustainedActivity) CheckStatus(string clientIp)
     {
         var now = DateTime.UtcNow;
         
         if (!_trackers.TryGetValue(clientIp, out var tracker))
-            return (false, 0, 0, false);
+            return (false, 0, 0, 0, false);
         
         lock (tracker)
         {
+            var secondCount = tracker.GetSecondCount(now);
             var minuteCount = tracker.GetMinuteCount(now);
             var hourCount = tracker.GetHourCount(now);
             var sustainedActivity = tracker.IsSustainedActivity(now, SustainedActivityThreshold);
             
-            var requiresTurnstile = minuteCount >= MinuteThreshold 
+            var requiresTurnstile = secondCount >= SecondThreshold
+                                 || minuteCount >= MinuteThreshold 
                                  || hourCount >= HourThreshold 
                                  || sustainedActivity;
             
-            return (requiresTurnstile, minuteCount, hourCount, sustainedActivity);
+            return (requiresTurnstile, secondCount, minuteCount, hourCount, sustainedActivity);
         }
     }
 
@@ -109,9 +115,11 @@ public class ClickRateLimitService
 
     private class ClickTracker
     {
-        // For minute/hour rate limiting - use sliding window counters (O(1) space)
+        // For second/minute/hour rate limiting - use sliding window counters (O(1) space)
+        private int _secondCount;
         private int _minuteCount;
         private int _hourCount;
+        private DateTime _secondWindowStart;
         private DateTime _minuteWindowStart;
         private DateTime _hourWindowStart;
         
@@ -123,8 +131,10 @@ public class ClickRateLimitService
         public ClickTracker(DateTime now)
         {
             SessionStartTime = now;
+            _secondWindowStart = now;
             _minuteWindowStart = now;
             _hourWindowStart = now;
+            _secondCount = 0;
             _minuteCount = 0;
             _hourCount = 0;
             SessionClickCount = 0;
@@ -132,6 +142,14 @@ public class ClickRateLimitService
 
         public void RecordClick(DateTime now)
         {
+            // Slide the second window if needed
+            if ((now - _secondWindowStart).TotalSeconds >= 1)
+            {
+                _secondWindowStart = now;
+                _secondCount = 0;
+            }
+            _secondCount++;
+            
             // Slide the minute window if needed
             if ((now - _minuteWindowStart).TotalMinutes >= 1)
             {
@@ -150,6 +168,14 @@ public class ClickRateLimitService
             
             LastClickTime = now;
             SessionClickCount++;
+        }
+
+        public int GetSecondCount(DateTime now)
+        {
+            // If the window has expired, return 0
+            if ((now - _secondWindowStart).TotalSeconds >= 1)
+                return 0;
+            return _secondCount;
         }
 
         public int GetMinuteCount(DateTime now)
