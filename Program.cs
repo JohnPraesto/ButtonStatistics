@@ -102,8 +102,19 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 {
     var clientIp = GetClientKey(http);
 
-    // Check if click was triggered by a script (isTrusted = false)
-    if (req.IsTrusted == false)
+    // // Check for browser-like request (blocks simple HTTP clients like HttpClient, curl, etc.)
+    // var userAgent = http.Request.Headers.UserAgent.ToString();
+    // var acceptHeader = http.Request.Headers.Accept.ToString();
+    // var secFetchSite = http.Request.Headers["Sec-Fetch-Site"].ToString();
+    
+    // var looksLikeBrowser = !string.IsNullOrEmpty(userAgent)
+    //     && (userAgent.Contains("Mozilla") || userAgent.Contains("Chrome") || userAgent.Contains("Safari") || userAgent.Contains("Firefox"))
+    //     && !string.IsNullOrEmpty(acceptHeader)
+    //     && !string.IsNullOrEmpty(secFetchSite); // Sec-Fetch-* headers are only sent by real browsers
+    
+    // // Require isTrusted == true AND browser-like headers
+    // if (req.IsTrusted != true || !looksLikeBrowser)
+    if (req.IsTrusted != true)
     {
         return Results.Json(new
         {
