@@ -220,7 +220,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 138_050;
+    const int milestone = 138_100;
     bool milestoneHit = totalCount == milestone;
 
     int? donationRequestId = null;
