@@ -220,10 +220,10 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 200_000;
+    const int milestone = 138_000;
     bool milestoneHit = totalCount == milestone;
 
-    int? donationRequestId = null; // why is this needed?
+    int? donationRequestId = null;
 
     // If milestone is hit create an empty DonationRequest
     // for the user to fill or not fill. It needs to be created anyway.
@@ -240,7 +240,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
         db.DonationRequests.Add(donationRequest);
         await db.SaveChangesAsync();
-        donationRequestId = donationRequest.Id; // why is this needed?
+        donationRequestId = donationRequest.Id;
 
         await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
     }

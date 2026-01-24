@@ -153,6 +153,9 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
         aria-labelledby="milestone-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
+        <button type="button" className="modal-x" onClick={onClose} title="Close">
+          ×
+        </button>
         {variant === 'self' ? (
           <>
             <h1 id="milestone-title">Congratulations!</h1>
