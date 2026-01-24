@@ -106,9 +106,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     var userAgent = http.Request.Headers.UserAgent.ToString();
     var acceptHeader = http.Request.Headers.Accept.ToString();
     var secFetchSite = http.Request.Headers["Sec-Fetch-Site"].ToString();
-    
+
     var looksLikeBrowser = !string.IsNullOrEmpty(userAgent) && !string.IsNullOrEmpty(acceptHeader) && !string.IsNullOrEmpty(secFetchSite); // Sec-Fetch-* headers are only sent by real browsers
-    
+
     if (req.IsTrusted != true || !looksLikeBrowser)
     {
         return Results.Json(new
@@ -220,17 +220,36 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 200_000; // ÄNDRA TILL 200 000 EFTER TESTER KLARA
+    const int milestone = 200_000;
     bool milestoneHit = totalCount == milestone;
 
-    if (milestoneHit)
-        await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
+    int? donationRequestId = null; // why is this needed?
 
+    // If milestone is hit create an empty DonationRequest
+    // for the user to fill or not fill. It needs to be created anyway.
+    if (milestoneHit)
+    {
+        var donationRequest = new DonationRequest
+        {
+            Milestone = milestone,
+            DateTime = DateTime.UtcNow,
+            Name = null,
+            Email = null,
+            Message = null
+        };
+
+        db.DonationRequests.Add(donationRequest);
+        await db.SaveChangesAsync();
+        donationRequestId = donationRequest.Id; // why is this needed?
+
+        await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
+    }
     return Results.Ok(new
     {
         milestoneHit,
         milestone,
         total = totalCount,
+        donationRequestId,
         // Rate limit info so frontend knows when to show Turnstile
         rateLimit = new
         {
@@ -332,12 +351,17 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 app.MapGet("/country-clicks", async (AppDbContext db) =>
     Results.Ok(await db.CountryClicks.AsNoTracking().OrderByDescending(c => c.Count).ThenBy(c => c.CountryCode).ToListAsync()));
 
-app.MapPost("/donation-request", async (AppDbContext db, DonationRequest request) =>
+app.MapPut("/donation-request/{id:int}", async (AppDbContext db, int id, DonationRequestUpdateDto body) =>
 {
-    db.DonationRequests.Add(request);
-    await db.SaveChangesAsync();
+    var donationRequest = await db.DonationRequests.SingleOrDefaultAsync(x => x.Id == id);
+    if (donationRequest is null) return Results.NotFound();
 
-    return Results.Created($"/donation-request/{request.Id}", request);
+    donationRequest.Name = body.Name;
+    donationRequest.Email = body.Email;
+    donationRequest.Message = body.Message;
+
+    await db.SaveChangesAsync();
+    return Results.NoContent();
 });
 
 app.MapGet("/donation-request", async (AppDbContext db) =>
@@ -350,3 +374,5 @@ app.MapGet("/donation-request", async (AppDbContext db) =>
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+record DonationRequestUpdateDto(string? Name, string? Email, string? Message);

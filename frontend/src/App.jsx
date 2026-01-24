@@ -91,7 +91,7 @@ const ClickProgress = memo(function ClickProgress({ total, max, markerValue, mar
   )
 })
 
-const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, variant, onClose }) {
+const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, variant, donationRequestId, onClose }) {
   const apiUrl = import.meta.env.VITE_API_URL ?? ''
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), [])
   const [name, setName] = useState('')
@@ -116,8 +116,13 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      const res = await fetch(`${apiUrl}/donation-request`, {
-        method: 'POST',
+      if (!donationRequestId) {
+        console.error('No donationRequestId available (backend must return it on milestoneHit).')
+        return
+      }
+
+      const res = await fetch(`${apiUrl}/donation-request/${donationRequestId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name || null,
@@ -125,10 +130,12 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
           message: message || null
         })
       })
+
       if (!res.ok) {
         console.error('Donation request failed with status:', res.status)
         return
       }
+
       setSubmitted(true)
     } catch (err) {
       console.error('Failed to submit donation request:', err)
@@ -304,7 +311,7 @@ function App() {
     return countryNameFormatter.of(upper) ?? upper
   }
 
-  const [milestoneModal, setMilestoneModal] = useState({ open: false, milestone: null, total: null, variant: 'other' })
+  const [milestoneModal, setMilestoneModal] = useState({ open: false, milestone: null, total: null, variant: 'other', donationRequestId: null })
 
   const [seconds, setSeconds] = useState([])
   const [minutes, setMinutes] = useState([])
@@ -639,7 +646,8 @@ function App() {
           open: true,
           milestone: payload.milestone,
           total: payload.total ?? null,
-          variant: 'other'
+          variant: 'other',
+          donationRequestId: null
         }
       })
     })
@@ -704,7 +712,7 @@ function App() {
       
       setMyClicks(c => c + 1)
       if (payload?.milestoneHit) {
-        setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self' })
+        setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self', donationRequestId: payload.donationRequestId ?? null })
       }
     } catch (err) {
       console.error('Failed to increment:', err)
@@ -752,7 +760,7 @@ function App() {
         }
         
         if (payload?.milestoneHit) {
-          setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self' })
+          setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self', donationRequestId: payload.donationRequestId ?? null })
         }
       } else {
         // Verification failed, reset token so they can try again
@@ -1171,6 +1179,7 @@ function App() {
           milestone={milestoneModal.milestone}
           total={milestoneModal.total}
           variant={milestoneModal.variant}
+          donationRequestId={milestoneModal.donationRequestId}
           onClose={() => setMilestoneModal({ open: false, milestone: null, total: null, variant: 'other' })}
         />
 
