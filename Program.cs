@@ -169,13 +169,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     await db.Database.ExecuteSqlRawAsync("UPDATE Seconds SET Count = Count + 1 WHERE [Index] = {0}", secondIndex);
     await db.Database.ExecuteSqlRawAsync("UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1");
-    await db.Database.ExecuteSqlRawAsync("UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {0}", req.LocalHour); // lägga samma if-sats här som för localweek day och month? Se om denna krashar först.
-
-    if (req.LocalWeekday is int lw && lw >= 0 && lw <= 6) // what happens here if it is not an int?
-        await db.Database.ExecuteSqlRawAsync("UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {0}", lw);
-
-    if (req.LocalMonth is int lm && lm >= 0 && lm <= 11)
-        await db.Database.ExecuteSqlRawAsync("UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {0}", lm);
+    await db.Database.ExecuteSqlRawAsync("UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {0}", req.LocalHour);
+    await db.Database.ExecuteSqlRawAsync("UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {0}", req.LocalWeekday);
+    await db.Database.ExecuteSqlRawAsync("UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {0}", req.LocalMonth);
 
     var updated = await db.Database.ExecuteSqlRawAsync(
         "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
@@ -197,15 +193,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
     var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
     var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
+    var localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == req.LocalWeekday).Select(w => w.Count).SingleAsync();
+    var localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == req.LocalMonth).Select(m => m.Count).SingleAsync();
     var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
-
-    int? localWeekdayCount = null;
-    if (req.LocalWeekday is int lw2 && lw2 >= 0 && lw2 <= 6)
-        localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == lw2).Select(w => w.Count).SingleAsync();
-
-    int? localMonthCount = null;
-    if (req.LocalMonth is int lm2 && lm2 >= 0 && lm2 <= 11)
-        localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == lm2).Select(m => m.Count).SingleAsync();
 
     await tx.CommitAsync();
 

@@ -671,7 +671,6 @@ function App() {
         localWeekday: new Date().getDay(), 
         localMonth: new Date().getMonth(),
         isTrusted: event?.isTrusted ?? false // Detect script-triggered clicks
-        // Never include token here - only use via Continue button
       }
       
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
