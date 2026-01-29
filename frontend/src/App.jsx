@@ -736,7 +736,8 @@ function App() {
         localHour: new Date().getHours(), 
         localWeekday: new Date().getDay(), 
         localMonth: new Date().getMonth(),
-        turnstileToken: turnstileToken
+        turnstileToken: turnstileToken,
+        isTrusted: true
       }
       
       const res = await fetch(`${apiUrl}/clicks/increment-now`, { 
@@ -1193,7 +1194,7 @@ function App() {
             <h2 id="turnstile-title">Are you human?</h2>
             <p className="turnstile-info">
               {rateLimitInfo.sustainedActivity ? (
-                <>You&apos;ve been clicking for over 10 hours straight! That&apos;s impressive dedication (or suspicious behavior).</>
+                <>You&apos;ve been clicking for over 2 hours straight! That&apos;s impressive dedication (or suspicious behavior).</>
               ) : (
                 <>You&apos;ve been clicking a lot! ({rateLimitInfo.minuteCount} clicks/min, {rateLimitInfo.hourCount} clicks/hr)</>
               )}
