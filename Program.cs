@@ -3,6 +3,7 @@ using ButtonStatistics.Models;
 using ButtonStatistics.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
@@ -167,14 +168,15 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     await using var tx = await db.Database.BeginTransactionAsync();
 
-    await db.Database.ExecuteSqlRawAsync("UPDATE Seconds SET Count = Count + 1 WHERE [Index] = {0}", secondIndex);
-    await db.Database.ExecuteSqlRawAsync("UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1");
-    await db.Database.ExecuteSqlRawAsync("UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {0}", req.LocalHour);
-    await db.Database.ExecuteSqlRawAsync("UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {0}", req.LocalWeekday);
-    await db.Database.ExecuteSqlRawAsync("UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {0}", req.LocalMonth);
+    await db.Database.ExecuteSqlRawAsync(@"
+        UPDATE Seconds SET Count = Count + 1 WHERE [Index] = {0};
+        UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1;
+        UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {1};
+        UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {2};
+        UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {3};",
+        secondIndex, req.LocalHour, req.LocalWeekday, req.LocalMonth);
 
-    var updated = await db.Database.ExecuteSqlRawAsync(
-        "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
+    var updated = await db.Database.ExecuteSqlRawAsync("UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
 
     if (updated == 0)
     {
@@ -190,12 +192,48 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
                 "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
         }
     }
-    var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
-    var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
-    var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
-    var localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == req.LocalWeekday).Select(w => w.Count).SingleAsync();
-    var localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == req.LocalMonth).Select(m => m.Count).SingleAsync();
-    var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
+    //var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
+    //var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
+    //var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
+    //var localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == req.LocalWeekday).Select(w => w.Count).SingleAsync();
+    //var localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == req.LocalMonth).Select(m => m.Count).SingleAsync();
+    //var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
+
+
+
+    // Batch all reads in a single round-trip using raw SQL
+    var conn = db.Database.GetDbConnection();
+    if (conn.State != System.Data.ConnectionState.Open)
+        await conn.OpenAsync();
+
+    using var cmd = conn.CreateCommand();
+    cmd.Transaction = db.Database.CurrentTransaction?.GetDbTransaction();
+    cmd.CommandText = @"
+        SELECT 
+            (SELECT Count FROM Seconds WHERE [Index] = @p0),
+            (SELECT Count FROM TotalClicks WHERE Id = 1),
+            (SELECT Count FROM LocalHours WHERE [Index] = @p1),
+            (SELECT Count FROM LocalWeekdays WHERE [Index] = @p2),
+            (SELECT Count FROM LocalMonths WHERE [Index] = @p3),
+            (SELECT Count FROM CountryClicks WHERE CountryCode = @p4)";
+
+    var p0 = cmd.CreateParameter(); p0.ParameterName = "@p0"; p0.Value = secondIndex; cmd.Parameters.Add(p0);
+    var p1 = cmd.CreateParameter(); p1.ParameterName = "@p1"; p1.Value = req.LocalHour; cmd.Parameters.Add(p1);
+    var p2 = cmd.CreateParameter(); p2.ParameterName = "@p2"; p2.Value = req.LocalWeekday; cmd.Parameters.Add(p2);
+    var p3 = cmd.CreateParameter(); p3.ParameterName = "@p3"; p3.Value = req.LocalMonth; cmd.Parameters.Add(p3);
+    var p4 = cmd.CreateParameter(); p4.ParameterName = "@p4"; p4.Value = country; cmd.Parameters.Add(p4);
+
+    using var reader = await cmd.ExecuteReaderAsync();
+    await reader.ReadAsync();
+
+    var secondCount = reader.GetInt32(0);
+    var totalCount = reader.GetInt32(1);
+    var localHourCount = reader.GetInt32(2);
+    var localWeekdayCount = reader.GetInt32(3);
+    var localMonthCount = reader.GetInt32(4);
+    var countryCount = reader.GetInt32(5);
+
+    await reader.CloseAsync();
 
     await tx.CommitAsync();
 
