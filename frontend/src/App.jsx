@@ -17,6 +17,9 @@ import {
 } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 
+const MILESTONE_STEP = 100000
+const PROGRESS_BASE_MAX = 1000000
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ChartDataLabels)
 ChartJS.defaults.plugins.datalabels = {
   ...(ChartJS.defaults.plugins.datalabels ?? {}),
@@ -94,6 +97,7 @@ const ClickProgress = memo(function ClickProgress({ total, max, markerValue, mar
 const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, variant, donationRequestId, onClose }) {
   const apiUrl = import.meta.env.VITE_API_URL ?? ''
   const formatted = useMemo(() => new Intl.NumberFormat('sv-SE'), [])
+  const donationAmount = typeof milestone === 'number' && milestone > 0 && milestone % 1_000_000 === 0 ? 1000 : 100
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -165,7 +169,7 @@ const MilestoneModal = memo(function MilestoneModal({ open, milestone, total, va
             {!submitted ? (
               <>
                 <p className="milestone-description">
-                  Wish for a charity or a non-profit association to get a 100 SEK donation from me!
+                  Wish for a charity or a non-profit association to get a {formatted.format(donationAmount)} SEK donation from me!
                 </p>
                 <form className="milestone-form" onSubmit={handleSubmit}>
                   <div className="milestone-form__field">
@@ -327,6 +331,15 @@ function App() {
   const [localMonths, setLocalMonths] = useState([])
   const [countriesByCode, setCountriesByCode] = useState([])
   const [total, setTotal] = useState(0)
+  const [nextMilestone, setNextMilestone] = useState(MILESTONE_STEP)
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('sv-SE'), [])
+  const progressMax = useMemo(() => {
+    let max = PROGRESS_BASE_MAX
+    while (total >= max) {
+      max *= 2
+    }
+    return max
+  }, [total])
 
   const [myClicks, setMyClicks] = useState(() => {
     const saved = localStorage.getItem('myClicks')
@@ -474,7 +487,14 @@ function App() {
       const res = await fetch(`${apiUrl}/total-clicks`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      setTotal(data.count ?? 0)
+      const totalCount = typeof data.count === 'number' ? data.count : 0
+      setTotal(totalCount)
+
+      if (typeof data.nextMilestone === 'number') {
+        setNextMilestone(data.nextMilestone)
+      } else {
+        setNextMilestone((Math.floor(totalCount / MILESTONE_STEP) + 1) * MILESTONE_STEP)
+      }
     } catch (err) {
       console.error('Failed to load total:', err)
     }
@@ -638,6 +658,12 @@ function App() {
     connection.on('milestoneReached', (payload) => {
       if (!payload?.milestone) return
 
+      if (typeof payload.nextMilestone === 'number') {
+        setNextMilestone(payload.nextMilestone)
+      } else {
+        setNextMilestone(payload.milestone + MILESTONE_STEP)
+      }
+
       // Only show 'other' modal if we're not already showing a 'self' modal for this milestone
       // This prevents the SignalR broadcast from overwriting the HTTP response's 'self' variant
       setMilestoneModal(prev => {
@@ -714,6 +740,9 @@ function App() {
       
       setMyClicks(c => c + 1)
       if (payload?.milestoneHit) {
+        if (typeof payload.nextMilestone === 'number') {
+          setNextMilestone(payload.nextMilestone)
+        }
         setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self', donationRequestId: payload.donationRequestId ?? null })
       }
     } catch (err) {
@@ -763,6 +792,9 @@ function App() {
         }
         
         if (payload?.milestoneHit) {
+          if (typeof payload.nextMilestone === 'number') {
+            setNextMilestone(payload.nextMilestone)
+          }
           setMilestoneModal({ open: true, milestone: payload.milestone, total: payload.total, variant: 'self', donationRequestId: payload.donationRequestId ?? null })
         }
       } else {
@@ -1229,9 +1261,9 @@ function App() {
 
       <ClickProgress 
         total={total} 
-        max={1000000}
-        markerValue={200000}
-        markerText="The one who makes the 200 000th click will chose a charity to recieve a donation!"
+        max={progressMax}
+        markerValue={nextMilestone}
+        markerText={`The one who makes the ${numberFormatter.format(nextMilestone)}th click will chose a charity to recieve a donation!`}
         />
         
       <div className="sticky-header">

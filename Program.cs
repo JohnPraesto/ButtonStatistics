@@ -11,6 +11,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 var env = builder.Environment;
 
+const int MilestoneStep = 100_000;
+
+static int GetNextMilestone(int totalCount)
+{
+    return ((totalCount / MilestoneStep) + 1) * MilestoneStep;
+}
+
 builder.Services.AddDbContextPool<AppDbContext>(options =>
 {
     if (env.IsDevelopment())
@@ -248,8 +255,11 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         country = new { code = country, count = countryCount }
     });
 
-    const int milestone = 200_000;
-    bool milestoneHit = totalCount == milestone;
+    bool milestoneHit = totalCount % MilestoneStep == 0;
+    // What happens here?
+    // milestone is set to totalCount if milestoneHit is true? Else set to next milestone?
+    int milestone = milestoneHit ? totalCount : GetNextMilestone(totalCount);
+    int nextMilestone = GetNextMilestone(totalCount);
 
     int? donationRequestId = null;
 
@@ -259,7 +269,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     {
         var donationRequest = new DonationRequest
         {
-            Milestone = milestone,
+            Milestone = totalCount,
             DateTime = DateTime.UtcNow,
             Name = null,
             Email = null,
@@ -270,12 +280,13 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         await db.SaveChangesAsync();
         donationRequestId = donationRequest.Id;
 
-        await hub.Clients.All.SendAsync("milestoneReached", new { milestone, total = totalCount });
+        await hub.Clients.All.SendAsync("milestoneReached", new { milestone = totalCount, total = totalCount, nextMilestone });
     }
     return Results.Ok(new
     {
         milestoneHit,
         milestone,
+        nextMilestone,
         total = totalCount,
         donationRequestId,
         // Rate limit info so frontend knows when to show Turnstile
@@ -373,7 +384,11 @@ app.MapGet("/local-months", async (AppDbContext db) =>
 app.MapGet("/total-clicks", async (AppDbContext db) =>
 {
     var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);
-    return Results.Ok(new { count = total.Count });
+    return Results.Ok(new
+    {
+        count = total.Count,
+        nextMilestone = GetNextMilestone(total.Count)
+    });
 });
 
 app.MapGet("/country-clicks", async (AppDbContext db) =>
