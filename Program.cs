@@ -143,6 +143,15 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     if (req.IsTrusted != true || !looksLikeBrowser)
     {
+        var precheckReasons = new List<string>();
+        if (req.IsTrusted != true)
+            precheckReasons.Add("Untrusted click event (likely script-triggered)");
+        if (!looksLikeBrowser)
+            precheckReasons.Add("Missing browser security headers");
+
+        var precheckReason = string.Join(", ", precheckReasons);
+        await mailjetNotificationService.SendTurnstileActivatedAsync(clientIp, precheckReason, 0, 0, 0, false);
+
         return Results.Json(new
         {
             error = "turnstile_required",
