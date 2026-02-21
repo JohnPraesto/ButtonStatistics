@@ -12,10 +12,33 @@ var builder = WebApplication.CreateBuilder(args);
 var env = builder.Environment;
 
 const int MilestoneStep = 100_000;
+const int SecondThreshold = 15;
+const int MinuteThreshold = 500;
+const int HourThreshold = 15_000;
+const int SustainedHoursThreshold = 2;
 
 static int GetNextMilestone(int totalCount)
 {
     return ((totalCount / MilestoneStep) + 1) * MilestoneStep;
+}
+
+static string GetTurnstileActivationReason(int secondCount, int minuteCount, int hourCount, bool sustainedActivity)
+{
+    var reasons = new List<string>();
+
+    if (secondCount >= SecondThreshold)
+        reasons.Add($"Second threshold reached ({secondCount}/{SecondThreshold})");
+
+    if (minuteCount >= MinuteThreshold)
+        reasons.Add($"Minute threshold reached ({minuteCount}/{MinuteThreshold})");
+
+    if (hourCount >= HourThreshold)
+        reasons.Add($"Hour threshold reached ({hourCount}/{HourThreshold})");
+
+    if (sustainedActivity)
+        reasons.Add($"Continuous clicking for {SustainedHoursThreshold}+ hours");
+
+    return reasons.Count == 0 ? "Unknown trigger" : string.Join(", ", reasons);
 }
 
 builder.Services.AddDbContextPool<AppDbContext>(options =>
@@ -73,6 +96,7 @@ builder.Services.AddHostedService<RollService>();
 // Turnstile and rate limiting services
 builder.Services.AddSingleton<ClickRateLimitService>();
 builder.Services.AddHttpClient<TurnstileService>();
+builder.Services.AddHttpClient<MailjetNotificationService>();
 
 var app = builder.Build();
 
@@ -106,7 +130,7 @@ app.UseRateLimiter();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
-app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, IncrementNowRequestWithTurnstile req) =>
+app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, MailjetNotificationService mailjetNotificationService, IncrementNowRequestWithTurnstile req) =>
 {
     var clientIp = GetClientKey(http);
 
@@ -165,6 +189,12 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     // Record this click (for rate limiting tracking)
     var (newRequiresTurnstile, newSecondCount, newMinuteCount, newHourCount, newSustainedActivity) = rateLimiter.RecordClick(clientIp);
+    var turnstileActivated = !requiresTurnstile && newRequiresTurnstile;
+    if (turnstileActivated)
+    {
+        var reason = GetTurnstileActivationReason(newSecondCount, newMinuteCount, newHourCount, newSustainedActivity);
+        await mailjetNotificationService.SendTurnstileActivatedAsync(clientIp, reason, newSecondCount, newMinuteCount, newHourCount, newSustainedActivity);
+    }
 
     var secondIndex = DateTime.UtcNow.Second;
 
@@ -297,10 +327,10 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
             minuteCount = newMinuteCount,
             hourCount = newHourCount,
             sustainedActivity = newSustainedActivity,
-            secondThreshold = 15,
-            minuteThreshold = 500,
-            hourThreshold = 15_000,
-            sustainedHoursThreshold = 2
+            secondThreshold = SecondThreshold,
+            minuteThreshold = MinuteThreshold,
+            hourThreshold = HourThreshold,
+            sustainedHoursThreshold = SustainedHoursThreshold
         }
     });
 
@@ -394,16 +424,22 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 app.MapGet("/country-clicks", async (AppDbContext db) =>
     Results.Ok(await db.CountryClicks.AsNoTracking().OrderByDescending(c => c.Count).ThenBy(c => c.CountryCode).ToListAsync()));
 
-app.MapPut("/donation-request/{id:int}", async (AppDbContext db, int id, DonationRequestUpdateDto body) =>
+app.MapPut("/donation-request/{id:int}", async (HttpContext http, AppDbContext db, MailjetNotificationService mailjetNotificationService, int id, DonationRequestUpdateDto body) =>
 {
     var donationRequest = await db.DonationRequests.SingleOrDefaultAsync(x => x.Id == id);
     if (donationRequest is null) return Results.NotFound();
+
+    var country = http.Request.Headers["CF-IPCountry"].ToString();
+    if (string.IsNullOrWhiteSpace(country) || country.Length != 2)
+        country = "ZZ";
+    country = country.ToUpperInvariant();
 
     donationRequest.Name = body.Name;
     donationRequest.Email = body.Email;
     donationRequest.Message = body.Message;
 
     await db.SaveChangesAsync();
+    await mailjetNotificationService.SendDonationRequestSubmittedAsync(donationRequest, country);
     return Results.NoContent();
 });
 
