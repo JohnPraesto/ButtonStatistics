@@ -168,6 +168,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         // Turnstile verification required
         if (string.IsNullOrWhiteSpace(req.TurnstileToken))
         {
+            var reason = GetTurnstileActivationReason(rateLimitSecondCount, rateLimitMinuteCount, rateLimitHourCount, sustainedActivity);
+            await mailjetNotificationService.SendTurnstileActivatedAsync(clientIp, reason, rateLimitSecondCount, rateLimitMinuteCount, rateLimitHourCount, sustainedActivity);
+
             return Results.Json(new
             {
                 error = "turnstile_required",

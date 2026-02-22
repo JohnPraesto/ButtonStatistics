@@ -71,6 +71,13 @@ public class ClickRateLimitService
         
         lock (tracker)
         {
+            // If the user has been inactive for a while, treat this as a new session.
+            // This prevents stale session duration from incorrectly triggering sustained activity.
+            if (tracker.LastClickTime.HasValue && (now - tracker.LastClickTime.Value) > SessionGapThreshold)
+            {
+                tracker.ResetSession(now);
+            }
+
             var secondCount = tracker.GetSecondCount(now);
             var minuteCount = tracker.GetMinuteCount(now);
             var hourCount = tracker.GetHourCount(now);
@@ -205,7 +212,13 @@ public class ClickRateLimitService
         {
             SessionStartTime = now;
             SessionClickCount = 0;
-            // Keep rate limit counters - they'll naturally slide
+            LastClickTime = null;
+            _secondWindowStart = now;
+            _minuteWindowStart = now;
+            _hourWindowStart = now;
+            _secondCount = 0;
+            _minuteCount = 0;
+            _hourCount = 0;
         }
     }
 }
