@@ -139,6 +139,8 @@ SELECT
                     int? monthUpdatedCount = reader.IsDBNull(4) ? null : reader.GetInt32(4);
                     int? yearUpdatedCount = reader.IsDBNull(5) ? null : reader.GetInt32(5);
 
+                    await reader.CloseAsync();
+
                     await tx.CommitAsync(stoppingToken);
 
                     await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
