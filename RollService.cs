@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
 
 namespace ButtonStatistics
 {
@@ -7,6 +9,54 @@ namespace ButtonStatistics
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IHubContext<ClickHub> _hub;
+        private const string TickSql = @"
+UPDATE Seconds
+SET Count = 0
+WHERE [Index] = @secondToResetIndex;
+
+UPDATE Minutes
+SET Count = CASE WHEN @isMinuteBoundary = 1 THEN 0 ELSE Count END
+WHERE [Index] = @currentMinuteIndex;
+
+UPDATE Hours
+SET Count = Count + (SELECT Count FROM Minutes WHERE [Index] = @previousMinuteIndex)
+WHERE @isMinuteBoundary = 1 AND [Index] = @hourTransferTargetIndex;
+
+UPDATE Days
+SET Count = Count + (SELECT Count FROM Hours WHERE [Index] = @previousHourIndex)
+WHERE @isHourBoundary = 1 AND [Index] = @dayTransferTargetIndex;
+
+UPDATE Hours
+SET Count = 0
+WHERE @isHourBoundary = 1 AND [Index] = @currentHourIndex;
+
+UPDATE Months
+SET Count = Count + (SELECT Count FROM Days WHERE [Index] = @previousDayIndex)
+WHERE @isDayBoundary = 1 AND [Index] = @monthTransferTargetIndex;
+
+UPDATE Days
+SET Count = 0
+WHERE @isDayBoundary = 1 AND [Index] = @currentDayIndex;
+
+UPDATE Years
+SET Count = Count + (SELECT Count FROM Months WHERE [Index] = @previousMonthIndex)
+WHERE @isMonthBoundary = 1 AND [Index] = @yearTransferTargetIndex;
+
+UPDATE Months
+SET Count = 0
+WHERE @isMonthBoundary = 1 AND [Index] = @currentMonthIndex;
+
+UPDATE Minutes
+SET Count = Count + (SELECT Count FROM Seconds WHERE [Index] = @previousSecondIndex)
+WHERE [Index] = @currentMinuteIndex;
+
+SELECT
+    (SELECT Count FROM Seconds WHERE [Index] = @previousSecondIndex) AS SecondToTransferCount,
+    (SELECT Count FROM Minutes WHERE [Index] = @currentMinuteIndex) AS CurrentMinuteCount,
+    CASE WHEN @isMinuteBoundary = 1 THEN (SELECT Count FROM Hours WHERE [Index] = @hourTransferTargetIndex) ELSE NULL END AS HourUpdatedCount,
+    CASE WHEN @isHourBoundary = 1 THEN (SELECT Count FROM Days WHERE [Index] = @dayTransferTargetIndex) ELSE NULL END AS DayUpdatedCount,
+    CASE WHEN @isDayBoundary = 1 THEN (SELECT Count FROM Months WHERE [Index] = @monthTransferTargetIndex) ELSE NULL END AS MonthUpdatedCount,
+    CASE WHEN @isMonthBoundary = 1 THEN (SELECT Count FROM Years WHERE [Index] = @yearTransferTargetIndex) ELSE NULL END AS YearUpdatedCount;";
 
         public RollService(IServiceScopeFactory scopeFactory, IHubContext<ClickHub> hub)
         {
@@ -17,12 +67,6 @@ namespace ButtonStatistics
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-            //int accumulatedSeconds = 0;
-            // så behöver du inte söka upp
-            // aktuell minut i database en gång per secund
-            // men när secondToRollIndex är 60
-            // DÅ överförs de accumulerade sekunderna till aktuell minut
-            // och accumulatedSeconds resetas
 
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
@@ -42,123 +86,92 @@ namespace ButtonStatistics
                 int currentMonthIndex = now.Month; // Months also start at 1
                 int previousMonthIndex = now.AddMonths(-1).Month;
                 int currentYearIndex = now.Year;
-                // These are set every second. High load every second then?
-                // Is it not better to set the dates within each roll over?
-                // You need only know what year it is if you're gonna use the year index...
-                // ... which is once a month.
+                var isMinuteBoundary = currentSecondIndex == 0;
+                var isHourBoundary = currentMinuteIndex == 0 && isMinuteBoundary;
+                var isDayBoundary = currentHourIndex == 0 && isHourBoundary;
+                var isMonthBoundary = currentDayIndex == 1 && isDayBoundary;
 
-                var secondToReset = await db.Seconds.SingleAsync(s => s.Index == secondToResetIndex);
-                var secondToTransfer = await db.Seconds.AsNoTracking().SingleAsync(s => s.Index == previousSecondIndex);
-                var currentMinute = await db.Minutes.SingleAsync(m => m.Index == currentMinuteIndex);
+                var hourTransferTargetIndex = currentMinuteIndex == 0 ? previousHourIndex : currentHourIndex;
+                var dayTransferTargetIndex = currentHourIndex == 0 ? previousDayIndex : currentDayIndex;
+                var monthTransferTargetIndex = currentDayIndex == 1 ? previousMonthIndex : currentMonthIndex;
+                var yearTransferTargetIndex = currentMonthIndex == 1 ? currentYearIndex - 1 : currentYearIndex;
 
-                secondToReset.Count = 0;
-                int secondToTransferCount = secondToTransfer.Count;
+                await using var tx = await db.Database.BeginTransactionAsync(stoppingToken);
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open)
+                    await conn.OpenAsync(stoppingToken);
 
-                // Once a minute
-                if (currentSecondIndex == 0)
-                {
-                    var minuteToTransfer = await db.Minutes.AsNoTracking().SingleAsync(m => m.Index == previousMinuteIndex); // minuteToTransfer is the previous minute
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = db.Database.CurrentTransaction?.GetDbTransaction();
+                cmd.CommandText = TickSql;
 
-                    // If the previous minute is the last minute of the hour (index 59).
-                    // It means that it is now a new hour and the current minute is the 1st of the new hour.
-                    // Then the previous minute count can not be added to the current hour.
-                    // It has to be added to the previous hour.
-                    if (currentMinuteIndex == 0) // Kan rationaliseras bort. Genom att lägga till && minuteToTransfer.Count != 0. Alltså, den behöver inte göra några databasanrop eller SinglaR signaler om det inte finns några counts att adda.
-                    {
-                        var previousHour = await db.Hours.SingleAsync(h => h.Index == previousHourIndex);
-                        previousHour.Count += minuteToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("hourUpdated", new { index = previousHourIndex, count = previousHour!.Count }, stoppingToken);
-                    }
-                    else
-                    {
-                        var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
-                        currentHour.Count += minuteToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("hourUpdated", new { index = currentHourIndex, count = currentHour!.Count }, stoppingToken);
-                    }
+                AddParameter(cmd, "@secondToResetIndex", secondToResetIndex);
+                AddParameter(cmd, "@previousSecondIndex", previousSecondIndex);
+                AddParameter(cmd, "@currentMinuteIndex", currentMinuteIndex);
+                AddParameter(cmd, "@previousMinuteIndex", previousMinuteIndex);
+                AddParameter(cmd, "@currentHourIndex", currentHourIndex);
+                AddParameter(cmd, "@previousHourIndex", previousHourIndex);
+                AddParameter(cmd, "@currentDayIndex", currentDayIndex);
+                AddParameter(cmd, "@previousDayIndex", previousDayIndex);
+                AddParameter(cmd, "@currentMonthIndex", currentMonthIndex);
+                AddParameter(cmd, "@previousMonthIndex", previousMonthIndex);
+                AddParameter(cmd, "@hourTransferTargetIndex", hourTransferTargetIndex);
+                AddParameter(cmd, "@dayTransferTargetIndex", dayTransferTargetIndex);
+                AddParameter(cmd, "@monthTransferTargetIndex", monthTransferTargetIndex);
+                AddParameter(cmd, "@yearTransferTargetIndex", yearTransferTargetIndex);
+                AddParameter(cmd, "@isMinuteBoundary", isMinuteBoundary ? 1 : 0);
+                AddParameter(cmd, "@isHourBoundary", isHourBoundary ? 1 : 0);
+                AddParameter(cmd, "@isDayBoundary", isDayBoundary ? 1 : 0);
+                AddParameter(cmd, "@isMonthBoundary", isMonthBoundary ? 1 : 0);
 
-                    currentMinute.Count = 0; // currentMinute.Count is reset to 0 just before it recieves the clicks from the current second.
-                }
+                await using var reader = await cmd.ExecuteReaderAsync(stoppingToken);
+                await reader.ReadAsync(stoppingToken);
 
-                // Once an hour
-                if (currentMinuteIndex == 0 && currentSecondIndex == 0)
-                {
-                    var hourToTransfer = await db.Hours.AsNoTracking().SingleAsync(h => h.Index == previousHourIndex);
+                var secondToTransferCount = reader.GetInt32(0);
+                var currentMinuteCount = reader.GetInt32(1);
+                int? hourUpdatedCount = reader.IsDBNull(2) ? null : reader.GetInt32(2);
+                int? dayUpdatedCount = reader.IsDBNull(3) ? null : reader.GetInt32(3);
+                int? monthUpdatedCount = reader.IsDBNull(4) ? null : reader.GetInt32(4);
+                int? yearUpdatedCount = reader.IsDBNull(5) ? null : reader.GetInt32(5);
 
-                    if (currentHourIndex == 0)
-                    {
-                        var previousDay = await db.Days.SingleAsync(h => h.Index == previousDayIndex);
-                        previousDay.Count += hourToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("dayUpdated", new { index = previousDayIndex, count = previousDay!.Count }, stoppingToken);
-                    }
-                    else
-                    {
-                        var currentDay = await db.Days.SingleAsync(h => h.Index == currentDayIndex);
-                        currentDay.Count += hourToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("dayUpdated", new { index = currentDayIndex, count = currentDay!.Count }, stoppingToken);
-                    }
-
-                    var currentHour = await db.Hours.SingleAsync(h => h.Index == currentHourIndex);
-                    currentHour.Count = 0;
-                }
-
-                // Once a day
-                if (currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
-                {
-                    var dayToTransfer = await db.Days.AsNoTracking().SingleAsync(m => m.Index == previousDayIndex); // .AsNoTracking() här? för att denna är read only och behöver inte trackas av EF. Stämmer detta?
-
-                    if (currentDayIndex == 1)
-                    {
-                        var previousMonth = await db.Months.SingleAsync(m => m.Index == previousMonthIndex); // inte .AsNoTracking() här? för att denna ska uppdateras och trackas ac EF
-                        previousMonth.Count += dayToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("monthUpdated", new { index = previousMonthIndex, count = previousMonth!.Count }, stoppingToken);
-                    }
-                    else
-                    {
-                        var currentMonth = await db.Months.SingleAsync(m => m.Index == currentMonthIndex);
-                        currentMonth.Count += dayToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("monthUpdated", new { index = currentMonthIndex, count = currentMonth!.Count }, stoppingToken);
-                    }
-
-                    var currentDay = await db.Days.SingleAsync(d => d.Index == currentDayIndex);
-                    currentDay.Count = 0;
-                }
-
-                // Once a month
-                if (currentDayIndex == 1 && currentHourIndex == 0 && currentMinuteIndex == 0 && currentSecondIndex == 0)
-                {
-                    var monthToTransfer = await db.Months.AsNoTracking().SingleAsync(m => m.Index == previousMonthIndex);
-
-                    if (currentMonthIndex == 1)
-                    {
-                        var previousYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex - 1);
-                        previousYear.Count += monthToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex - 1, count = previousYear!.Count }, stoppingToken);
-                    }
-                    else
-                    {
-                        var currentYear = await db.Years.SingleAsync(h => h.Index == currentYearIndex);
-                        currentYear.Count += monthToTransfer.Count;
-                        await _hub.Clients.All.SendAsync("yearUpdated", new { index = currentYearIndex, count = currentYear!.Count }, stoppingToken);
-                    }
-
-                    var currentMonth = await db.Months.SingleAsync(h => h.Index == currentMonthIndex);
-                    currentMonth.Count = 0;
-                }
-
-                currentMinute.Count += secondToTransferCount;
-
-                await db.SaveChangesAsync();
+                await tx.CommitAsync(stoppingToken);
 
                 await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
-                if (currentSecondIndex == 0 || secondToTransferCount > 0) // minuteUpdated signal wont send unless there actually has been seconds transfered to the minute
-                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinute.Count }, stoppingToken);
 
-                // <500 clients: every-second updates are typically fine.
-                // 500–5,000: consider throttling (5–10s).
-                // 5,000: push once per minute or use a streaming/aggregation layer.
-                // You can also batch minute updates and send only when the value changes (skip sending if count didn’t change).
+                if (isMinuteBoundary || secondToTransferCount > 0)
+                {
+                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinuteCount }, stoppingToken);
+                }
+
+                if (isMinuteBoundary && hourUpdatedCount.HasValue)
+                {
+                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = hourTransferTargetIndex, count = hourUpdatedCount.Value }, stoppingToken);
+                }
+
+                if (isHourBoundary && dayUpdatedCount.HasValue)
+                {
+                    await _hub.Clients.All.SendAsync("dayUpdated", new { index = dayTransferTargetIndex, count = dayUpdatedCount.Value }, stoppingToken);
+                }
+
+                if (isDayBoundary && monthUpdatedCount.HasValue)
+                {
+                    await _hub.Clients.All.SendAsync("monthUpdated", new { index = monthTransferTargetIndex, count = monthUpdatedCount.Value }, stoppingToken);
+                }
+
+                if (isMonthBoundary && yearUpdatedCount.HasValue)
+                {
+                    await _hub.Clients.All.SendAsync("yearUpdated", new { index = yearTransferTargetIndex, count = yearUpdatedCount.Value }, stoppingToken);
+                }
 
             }
+        }
+
+        private static void AddParameter(System.Data.Common.DbCommand cmd, string name, object value)
+        {
+            var parameter = cmd.CreateParameter();
+            parameter.ParameterName = name;
+            parameter.Value = value;
+            cmd.Parameters.Add(parameter);
         }
     }
 }

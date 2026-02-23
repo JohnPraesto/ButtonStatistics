@@ -22,6 +22,54 @@ static int GetNextMilestone(int totalCount)
     return ((totalCount / MilestoneStep) + 1) * MilestoneStep;
 }
 
+static string GetIncrementAndReadSql(bool isSqlite)
+{
+    if (isSqlite)
+    {
+        return @"
+        UPDATE Seconds SET Count = Count + 1 WHERE [Index] = @p0;
+        UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1;
+        UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = @p1;
+        UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = @p2;
+        UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = @p3;
+
+        INSERT INTO CountryClicks (CountryCode, Count)
+        VALUES (@p4, 1)
+        ON CONFLICT(CountryCode) DO UPDATE SET Count = CountryClicks.Count + 1;
+
+        SELECT
+            (SELECT Count FROM Seconds WHERE [Index] = @p0),
+            (SELECT Count FROM TotalClicks WHERE Id = 1),
+            (SELECT Count FROM LocalHours WHERE [Index] = @p1),
+            (SELECT Count FROM LocalWeekdays WHERE [Index] = @p2),
+            (SELECT Count FROM LocalMonths WHERE [Index] = @p3),
+            (SELECT Count FROM CountryClicks WHERE CountryCode = @p4);";
+    }
+
+    return @"
+        UPDATE Seconds SET Count = Count + 1 WHERE [Index] = @p0;
+        UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1;
+        UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = @p1;
+        UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = @p2;
+        UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = @p3;
+
+        MERGE CountryClicks AS target
+        USING (SELECT @p4 AS CountryCode) AS source
+        ON target.CountryCode = source.CountryCode
+        WHEN MATCHED THEN
+            UPDATE SET Count = target.Count + 1
+        WHEN NOT MATCHED THEN
+            INSERT (CountryCode, Count) VALUES (source.CountryCode, 1);
+
+        SELECT
+            (SELECT Count FROM Seconds WHERE [Index] = @p0),
+            (SELECT Count FROM TotalClicks WHERE Id = 1),
+            (SELECT Count FROM LocalHours WHERE [Index] = @p1),
+            (SELECT Count FROM LocalWeekdays WHERE [Index] = @p2),
+            (SELECT Count FROM LocalMonths WHERE [Index] = @p3),
+            (SELECT Count FROM CountryClicks WHERE CountryCode = @p4);";
+}
+
 static string GetTurnstileActivationReason(int secondCount, int minuteCount, int hourCount, bool sustainedActivity)
 {
     var reasons = new List<string>();
@@ -217,54 +265,13 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     await using var tx = await db.Database.BeginTransactionAsync();
 
-    await db.Database.ExecuteSqlRawAsync(@"
-        UPDATE Seconds SET Count = Count + 1 WHERE [Index] = {0};
-        UPDATE TotalClicks SET Count = Count + 1 WHERE Id = 1;
-        UPDATE LocalHours SET Count = Count + 1 WHERE [Index] = {1};
-        UPDATE LocalWeekdays SET Count = Count + 1 WHERE [Index] = {2};
-        UPDATE LocalMonths SET Count = Count + 1 WHERE [Index] = {3};",
-        secondIndex, req.LocalHour, req.LocalWeekday, req.LocalMonth);
-
-    var updated = await db.Database.ExecuteSqlRawAsync("UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
-
-    if (updated == 0)
-    {
-        try
-        {
-            await db.Database.ExecuteSqlRawAsync(
-                "INSERT INTO CountryClicks (CountryCode, Count) VALUES ({0}, 1)", country);
-        }
-        catch
-        {
-            // Race: another request inserted it first. Just try update again.
-            await db.Database.ExecuteSqlRawAsync(
-                "UPDATE CountryClicks SET Count = Count + 1 WHERE CountryCode = {0}", country);
-        }
-    }
-    //var secondCount = await db.Seconds.AsNoTracking().Where(s => s.Index == secondIndex).Select(s => s.Count).SingleAsync();
-    //var totalCount = await db.TotalClicks.AsNoTracking().Where(t => t.Id == 1).Select(t => t.Count).SingleAsync();
-    //var localHourCount = await db.LocalHours.AsNoTracking().Where(h => h.Index == req.LocalHour).Select(h => h.Count).SingleAsync();
-    //var localWeekdayCount = await db.LocalWeekdays.AsNoTracking().Where(w => w.Index == req.LocalWeekday).Select(w => w.Count).SingleAsync();
-    //var localMonthCount = await db.LocalMonths.AsNoTracking().Where(m => m.Index == req.LocalMonth).Select(m => m.Count).SingleAsync();
-    //var countryCount = await db.CountryClicks.AsNoTracking().Where(c => c.CountryCode == country).Select(c => c.Count).SingleAsync();
-
-
-
-    // Batch all reads in a single round-trip using raw SQL
     var conn = db.Database.GetDbConnection();
     if (conn.State != System.Data.ConnectionState.Open)
         await conn.OpenAsync();
 
     using var cmd = conn.CreateCommand();
     cmd.Transaction = db.Database.CurrentTransaction?.GetDbTransaction();
-    cmd.CommandText = @"
-        SELECT 
-            (SELECT Count FROM Seconds WHERE [Index] = @p0),
-            (SELECT Count FROM TotalClicks WHERE Id = 1),
-            (SELECT Count FROM LocalHours WHERE [Index] = @p1),
-            (SELECT Count FROM LocalWeekdays WHERE [Index] = @p2),
-            (SELECT Count FROM LocalMonths WHERE [Index] = @p3),
-            (SELECT Count FROM CountryClicks WHERE CountryCode = @p4)";
+    cmd.CommandText = GetIncrementAndReadSql(db.Database.IsSqlite());
 
     var p0 = cmd.CreateParameter(); p0.ParameterName = "@p0"; p0.Value = secondIndex; cmd.Parameters.Add(p0);
     var p1 = cmd.CreateParameter(); p1.ParameterName = "@p1"; p1.Value = req.LocalHour; cmd.Parameters.Add(p1);
