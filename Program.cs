@@ -4,6 +4,7 @@ using ButtonStatistics.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Data.Common;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
@@ -87,6 +88,24 @@ static string GetTurnstileActivationReason(int secondCount, int minuteCount, int
         reasons.Add($"Continuous clicking for {SustainedHoursThreshold}+ hours");
 
     return reasons.Count == 0 ? "Unknown trigger" : string.Join(", ", reasons);
+}
+
+static async Task EnsureReaderOnDataRowAsync(DbDataReader reader)
+{
+    if (reader.FieldCount > 0 && await reader.ReadAsync())
+    {
+        return;
+    }
+
+    while (await reader.NextResultAsync())
+    {
+        if (reader.FieldCount > 0 && await reader.ReadAsync())
+        {
+            return;
+        }
+    }
+
+    throw new InvalidOperationException("Click increment SQL batch did not return a data row.");
 }
 
 builder.Services.AddDbContextPool<AppDbContext>(options =>
@@ -280,7 +299,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
     var p4 = cmd.CreateParameter(); p4.ParameterName = "@p4"; p4.Value = country; cmd.Parameters.Add(p4);
 
     using var reader = await cmd.ExecuteReaderAsync();
-    await reader.ReadAsync();
+    await EnsureReaderOnDataRowAsync(reader);
 
     var secondCount = reader.GetInt32(0);
     var totalCount = reader.GetInt32(1);

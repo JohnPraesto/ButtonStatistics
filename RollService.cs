@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
+using System.Data.Common;
 
 namespace ButtonStatistics
 {
@@ -9,6 +10,7 @@ namespace ButtonStatistics
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IHubContext<ClickHub> _hub;
+        private readonly ILogger<RollService> _logger;
         private const string TickSql = @"
 UPDATE Seconds
 SET Count = 0
@@ -58,10 +60,11 @@ SELECT
     CASE WHEN @isDayBoundary = 1 THEN (SELECT Count FROM Months WHERE [Index] = @monthTransferTargetIndex) ELSE NULL END AS MonthUpdatedCount,
     CASE WHEN @isMonthBoundary = 1 THEN (SELECT Count FROM Years WHERE [Index] = @yearTransferTargetIndex) ELSE NULL END AS YearUpdatedCount;";
 
-        public RollService(IServiceScopeFactory scopeFactory, IHubContext<ClickHub> hub)
+        public RollService(IServiceScopeFactory scopeFactory, IHubContext<ClickHub> hub, ILogger<RollService> logger)
         {
             _scopeFactory = scopeFactory;
             _hub = hub;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -70,8 +73,10 @@ SELECT
 
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 var now = DateTime.UtcNow;
                 var currentSecondIndex = now.Second;
@@ -124,46 +129,69 @@ SELECT
                 AddParameter(cmd, "@isDayBoundary", isDayBoundary ? 1 : 0);
                 AddParameter(cmd, "@isMonthBoundary", isMonthBoundary ? 1 : 0);
 
-                await using var reader = await cmd.ExecuteReaderAsync(stoppingToken);
-                await reader.ReadAsync(stoppingToken);
+                    await using var reader = await cmd.ExecuteReaderAsync(stoppingToken);
+                    await EnsureReaderOnDataRowAsync(reader, stoppingToken);
 
-                var secondToTransferCount = reader.GetInt32(0);
-                var currentMinuteCount = reader.GetInt32(1);
-                int? hourUpdatedCount = reader.IsDBNull(2) ? null : reader.GetInt32(2);
-                int? dayUpdatedCount = reader.IsDBNull(3) ? null : reader.GetInt32(3);
-                int? monthUpdatedCount = reader.IsDBNull(4) ? null : reader.GetInt32(4);
-                int? yearUpdatedCount = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+                    var secondToTransferCount = reader.GetInt32(0);
+                    var currentMinuteCount = reader.GetInt32(1);
+                    int? hourUpdatedCount = reader.IsDBNull(2) ? null : reader.GetInt32(2);
+                    int? dayUpdatedCount = reader.IsDBNull(3) ? null : reader.GetInt32(3);
+                    int? monthUpdatedCount = reader.IsDBNull(4) ? null : reader.GetInt32(4);
+                    int? yearUpdatedCount = reader.IsDBNull(5) ? null : reader.GetInt32(5);
 
-                await tx.CommitAsync(stoppingToken);
+                    await tx.CommitAsync(stoppingToken);
 
-                await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
+                    await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
 
-                if (isMinuteBoundary || secondToTransferCount > 0)
-                {
-                    await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinuteCount }, stoppingToken);
+                    if (isMinuteBoundary || secondToTransferCount > 0)
+                    {
+                        await _hub.Clients.All.SendAsync("minuteUpdated", new { index = currentMinuteIndex, count = currentMinuteCount }, stoppingToken);
+                    }
+
+                    if (isMinuteBoundary && hourUpdatedCount.HasValue)
+                    {
+                        await _hub.Clients.All.SendAsync("hourUpdated", new { index = hourTransferTargetIndex, count = hourUpdatedCount.Value }, stoppingToken);
+                    }
+
+                    if (isHourBoundary && dayUpdatedCount.HasValue)
+                    {
+                        await _hub.Clients.All.SendAsync("dayUpdated", new { index = dayTransferTargetIndex, count = dayUpdatedCount.Value }, stoppingToken);
+                    }
+
+                    if (isDayBoundary && monthUpdatedCount.HasValue)
+                    {
+                        await _hub.Clients.All.SendAsync("monthUpdated", new { index = monthTransferTargetIndex, count = monthUpdatedCount.Value }, stoppingToken);
+                    }
+
+                    if (isMonthBoundary && yearUpdatedCount.HasValue)
+                    {
+                        await _hub.Clients.All.SendAsync("yearUpdated", new { index = yearTransferTargetIndex, count = yearUpdatedCount.Value }, stoppingToken);
+                    }
                 }
-
-                if (isMinuteBoundary && hourUpdatedCount.HasValue)
+                catch (Exception ex)
                 {
-                    await _hub.Clients.All.SendAsync("hourUpdated", new { index = hourTransferTargetIndex, count = hourUpdatedCount.Value }, stoppingToken);
-                }
-
-                if (isHourBoundary && dayUpdatedCount.HasValue)
-                {
-                    await _hub.Clients.All.SendAsync("dayUpdated", new { index = dayTransferTargetIndex, count = dayUpdatedCount.Value }, stoppingToken);
-                }
-
-                if (isDayBoundary && monthUpdatedCount.HasValue)
-                {
-                    await _hub.Clients.All.SendAsync("monthUpdated", new { index = monthTransferTargetIndex, count = monthUpdatedCount.Value }, stoppingToken);
-                }
-
-                if (isMonthBoundary && yearUpdatedCount.HasValue)
-                {
-                    await _hub.Clients.All.SendAsync("yearUpdated", new { index = yearTransferTargetIndex, count = yearUpdatedCount.Value }, stoppingToken);
+                    _logger.LogError(ex, "RollService tick failed; continuing to next tick.");
                 }
 
             }
+        }
+
+        private static async Task EnsureReaderOnDataRowAsync(DbDataReader reader, CancellationToken cancellationToken)
+        {
+            if (reader.FieldCount > 0 && await reader.ReadAsync(cancellationToken))
+            {
+                return;
+            }
+
+            while (await reader.NextResultAsync(cancellationToken))
+            {
+                if (reader.FieldCount > 0 && await reader.ReadAsync(cancellationToken))
+                {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException("RollService SQL batch did not return a data row.");
         }
 
         private static void AddParameter(System.Data.Common.DbCommand cmd, string name, object value)
