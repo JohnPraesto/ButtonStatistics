@@ -19,6 +19,25 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 
 const MILESTONE_STEP = 100000
 const PROGRESS_BASE_MAX = 1000000
+const CLICK_RING_TARGET = 100
+const CLICK_RING_RADIUS = 46.5
+const CLICK_RING_CIRCUMFERENCE = 2 * Math.PI * CLICK_RING_RADIUS
+
+const createBurstParticles = (count = 24) => {
+  return Array.from({ length: count }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / count
+    const distance = 52 + Math.random() * 26
+    return {
+      id: `${index}-${Date.now()}`,
+      tx: Math.cos(angle) * distance,
+      ty: Math.sin(angle) * distance,
+      delay: Math.floor(Math.random() * 80),
+      duration: 520 + Math.floor(Math.random() * 280),
+      size: 4 + Math.floor(Math.random() * 4),
+      color: ['#646cff', '#22c55e', '#818cf8', '#e0e7ff'][index % 4]
+    }
+  })
+}
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, ChartDataLabels)
 ChartJS.defaults.plugins.datalabels = {
@@ -345,6 +364,12 @@ function App() {
     const saved = localStorage.getItem('myClicks')
     return saved ? parseInt(saved, 10) || 0 : 0
   })
+  const [clickBurst, setClickBurst] = useState({ visible: false, key: 0, particles: [] })
+  const [lastBurstAtClick, setLastBurstAtClick] = useState(0)
+
+  const ringProgressClicks = myClicks % CLICK_RING_TARGET
+  const ringProgressRatio = ringProgressClicks / CLICK_RING_TARGET
+  const ringStrokeOffset = CLICK_RING_CIRCUMFERENCE * (1 - ringProgressRatio)
 
   // Turnstile state for bot protection
   const [turnstileRequired, setTurnstileRequired] = useState(false)
@@ -366,6 +391,27 @@ function App() {
   useEffect(() => {
     localStorage.setItem('myClicks', String(myClicks))
   }, [myClicks])
+
+  useEffect(() => {
+    if (myClicks <= 0) return
+    if (myClicks % CLICK_RING_TARGET !== 0) return
+    if (myClicks === lastBurstAtClick) return
+
+    setLastBurstAtClick(myClicks)
+    setClickBurst({
+      visible: true,
+      key: Date.now(),
+      particles: createBurstParticles()
+    })
+  }, [myClicks, lastBurstAtClick])
+
+  useEffect(() => {
+    if (!clickBurst.visible) return
+    const timeout = window.setTimeout(() => {
+      setClickBurst(prev => ({ ...prev, visible: false }))
+    }, 900)
+    return () => window.clearTimeout(timeout)
+  }, [clickBurst.visible, clickBurst.key])
 
   const fetchSeconds = async () => {
     try {
@@ -1267,9 +1313,43 @@ function App() {
         />
         
       <div className="sticky-header">
-        <button onClick={handleClick} className="click-button">
-          {myClicks}
-        </button>
+        <div className="click-button-wrap">
+          <svg className="click-progress-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+            <circle
+              className="click-progress-ring__fill"
+              cx="50"
+              cy="50"
+              r={CLICK_RING_RADIUS}
+              style={{
+                strokeDasharray: CLICK_RING_CIRCUMFERENCE,
+                strokeDashoffset: ringStrokeOffset,
+              }}
+            />
+          </svg>
+
+          <button onClick={handleClick} className="click-button">
+            {myClicks}
+          </button>
+
+          {clickBurst.visible ? (
+            <div className="click-burst" key={clickBurst.key} aria-hidden="true">
+              {clickBurst.particles.map((particle) => (
+                <span
+                  key={particle.id}
+                  className="click-burst__particle"
+                  style={{
+                    '--tx': `${particle.tx}px`,
+                    '--ty': `${particle.ty}px`,
+                    '--delay': `${particle.delay}ms`,
+                    '--duration': `${particle.duration}ms`,
+                    '--size': `${particle.size}px`,
+                    '--color': particle.color
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="page-content">
