@@ -462,6 +462,64 @@ app.MapGet("/total-clicks", async (AppDbContext db) =>
 app.MapGet("/country-clicks", async (AppDbContext db) =>
     Results.Ok(await db.CountryClicks.AsNoTracking().OrderByDescending(c => c.Count).ThenBy(c => c.CountryCode).ToListAsync()));
 
+app.MapGet("/debug/count-integrity", async (AppDbContext db) =>
+{
+    var nowUtc = DateTime.UtcNow;
+    var nowServerLocal = DateTime.Now;
+
+    var total = await db.TotalClicks.AsNoTracking().SingleAsync(t => t.Id == 1);
+    var localHourSum = await db.LocalHours.AsNoTracking().SumAsync(x => x.Count);
+    var localWeekdaySum = await db.LocalWeekdays.AsNoTracking().SumAsync(x => x.Count);
+    var localMonthSum = await db.LocalMonths.AsNoTracking().SumAsync(x => x.Count);
+    var countrySum = await db.CountryClicks.AsNoTracking().SumAsync(x => x.Count);
+
+    var currentUtcMonthIndex = nowUtc.Month;
+    var currentServerLocalMonthIndex = nowServerLocal.Month - 1;
+
+    var rollingCurrentUtcMonth = await db.Months.AsNoTracking()
+        .Where(m => m.Index == currentUtcMonthIndex)
+        .Select(m => m.Count)
+        .SingleAsync();
+
+    var localCurrentServerMonth = await db.LocalMonths.AsNoTracking()
+        .Where(m => m.Index == currentServerLocalMonthIndex)
+        .Select(m => m.Count)
+        .SingleAsync();
+
+    return Results.Ok(new
+    {
+        nowUtc,
+        nowServerLocal,
+        semantics = new
+        {
+            rollingMonths = "Months table is a rolling UTC-based last-12-month bucket set (1-12)",
+            localMonths = "LocalMonths table is a lifetime month-of-year bucket set from client local time (0-11)"
+        },
+        totals = new
+        {
+            totalClicks = total.Count,
+            localHoursSum = localHourSum,
+            localWeekdaysSum = localWeekdaySum,
+            localMonthsSum = localMonthSum,
+            countryClicksSum = countrySum,
+            delta = new
+            {
+                totalMinusLocalHours = total.Count - localHourSum,
+                totalMinusLocalWeekdays = total.Count - localWeekdaySum,
+                totalMinusLocalMonths = total.Count - localMonthSum,
+                totalMinusCountryClicks = total.Count - countrySum
+            }
+        },
+        currentMonthSnapshot = new
+        {
+            utcMonthIndex = currentUtcMonthIndex,
+            utcRollingMonthCount = rollingCurrentUtcMonth,
+            serverLocalMonthIndex = currentServerLocalMonthIndex,
+            serverLocalMonthCount = localCurrentServerMonth
+        }
+    });
+});
+
 app.MapPut("/donation-request/{id:int}", async (HttpContext http, AppDbContext db, MailjetNotificationService mailjetNotificationService, int id, DonationRequestUpdateDto body) =>
 {
     var donationRequest = await db.DonationRequests.SingleOrDefaultAsync(x => x.Id == id);
