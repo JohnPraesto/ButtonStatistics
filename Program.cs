@@ -520,33 +520,6 @@ app.MapGet("/debug/count-integrity", async (AppDbContext db) =>
     });
 });
 
-app.MapGet("/debug/minutes-snapshot", async (AppDbContext db) =>
-{
-    var nowUtc = DateTime.UtcNow;
-    var currentMinuteIndex = nowUtc.Minute;
-    var previousMinuteIndex = (nowUtc.Minute + 59) % 60;
-
-    var minutes = await db.Minutes.AsNoTracking().OrderBy(m => m.Index).ToListAsync();
-    var seconds = await db.Seconds.AsNoTracking().OrderBy(s => s.Index).ToListAsync();
-
-    var currentMinuteCount = minutes.Single(m => m.Index == currentMinuteIndex).Count;
-    var previousMinuteCount = minutes.Single(m => m.Index == previousMinuteIndex).Count;
-    var currentSecondCount = seconds.Single(s => s.Index == nowUtc.Second).Count;
-
-    return Results.Ok(new
-    {
-        nowUtc,
-        currentMinuteIndex,
-        previousMinuteIndex,
-        currentSecondIndex = nowUtc.Second,
-        currentMinuteCount,
-        previousMinuteCount,
-        currentSecondCount,
-        minutes,
-        seconds
-    });
-});
-
 app.MapPut("/donation-request/{id:int}", async (HttpContext http, AppDbContext db, MailjetNotificationService mailjetNotificationService, int id, DonationRequestUpdateDto body) =>
 {
     var donationRequest = await db.DonationRequests.SingleOrDefaultAsync(x => x.Id == id);

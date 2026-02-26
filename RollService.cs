@@ -143,26 +143,6 @@ SELECT
 
                     await tx.CommitAsync(stoppingToken);
 
-                    // debug
-                    if (secondToTransferCount > 0 || isMinuteBoundary || isHourBoundary || isDayBoundary || isMonthBoundary)
-                    {
-                        _logger.LogInformation(
-                            "Roll tick {NowUtc:o}: moved {SecondToTransferCount} from second {PreviousSecondIndex} to minute {CurrentMinuteIndex} (minuteCount={CurrentMinuteCount}); boundaries minute={IsMinuteBoundary}, hour={IsHourBoundary}, day={IsDayBoundary}, month={IsMonthBoundary}; targets hour={HourTarget}, day={DayTarget}, month={MonthTarget}, year={YearTarget}",
-                            now,
-                            secondToTransferCount,
-                            previousSecondIndex,
-                            currentMinuteIndex,
-                            currentMinuteCount,
-                            isMinuteBoundary,
-                            isHourBoundary,
-                            isDayBoundary,
-                            isMonthBoundary,
-                            hourTransferTargetIndex,
-                            dayTransferTargetIndex,
-                            monthTransferTargetIndex,
-                            yearTransferTargetIndex);
-                    }
-
                     await _hub.Clients.All.SendAsync("secondReset", new { index = secondToResetIndex }, stoppingToken);
 
                     if (isMinuteBoundary || secondToTransferCount > 0)
