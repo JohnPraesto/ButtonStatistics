@@ -17,9 +17,7 @@ public class ClickRateLimitService
     private const int HourThreshold = 15_000;
     private static readonly TimeSpan SustainedActivityThreshold = TimeSpan.FromHours(2);
     private static readonly TimeSpan SessionGapThreshold = TimeSpan.FromMinutes(30); // Gap that resets session
-    private static readonly TimeSpan VerificationLifetime = TimeSpan.FromHours(48);
     private readonly ConcurrentDictionary<string, ClickTracker> _trackers = new();
-    private readonly ConcurrentDictionary<string, DateTime> _verifiedIps = new();
     private readonly Timer _cleanupTimer;
 
     public ClickRateLimitService()
@@ -102,23 +100,6 @@ public class ClickRateLimitService
         _trackers.TryRemove(clientIp, out _);
     }
 
-    /// <summary>
-    /// Returns true if the given IP has been verified via Turnstile within the last 24 hours.
-    /// </summary>
-    public bool IsVerified(string clientIp)
-    {
-        return _verifiedIps.TryGetValue(clientIp, out var verifiedAt)
-            && (DateTime.UtcNow - verifiedAt) < VerificationLifetime;
-    }
-
-    /// <summary>
-    /// Marks the given IP as verified (passed initial Turnstile challenge).
-    /// </summary>
-    public void MarkVerified(string clientIp)
-    {
-        _verifiedIps[clientIp] = DateTime.UtcNow;
-    }
-
     private void CleanupOldEntries(object? state)
     {
         var now = DateTime.UtcNow;
@@ -137,14 +118,6 @@ public class ClickRateLimitService
             }
         }
 
-        // Also clean up expired verified IPs
-        foreach (var kvp in _verifiedIps)
-        {
-            if ((now - kvp.Value) > VerificationLifetime)
-            {
-                _verifiedIps.TryRemove(kvp.Key, out _);
-            }
-        }
     }
 
     private class ClickTracker
