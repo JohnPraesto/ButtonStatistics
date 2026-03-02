@@ -377,6 +377,11 @@ function App() {
   const [turnstileToken, setTurnstileToken] = useState(null)
   const [rateLimitInfo, setRateLimitInfo] = useState({ minuteCount: 0, hourCount: 0, sustainedActivity: false })
 
+  // Initial human verification gate
+  const [humanVerified, setHumanVerified] = useState(false)
+  const [verificationLoading, setVerificationLoading] = useState(true)
+  const [verificationSiteKey, setVerificationSiteKey] = useState(null)
+
   const sortedCountries = useMemo(() => {
     // Convert { SE: 10, US: 5 } -> [{ countryCode: 'SE', count: 10 }, ...]
     const list = Object.entries(countriesByCode).map(([countryCode, count]) => ({
@@ -387,6 +392,63 @@ function App() {
     list.sort((a, b) => (b.count - a.count) || a.countryCode.localeCompare(b.countryCode))
     return list
   }, [countriesByCode])
+
+  // Check initial verification status by attempting a lightweight click probe
+  useEffect(() => {
+    const checkVerification = async () => {
+      // In development, skip the gate — backend auto-verifies on /verify-human
+      const isDev = apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')
+      if (isDev) {
+        // Call /verify-human with empty token — dev backend auto-approves
+        await fetch(`${apiUrl}/verify-human`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ turnstileToken: null })
+        }).catch(() => {})
+        setHumanVerified(true)
+        setVerificationLoading(false)
+        return
+      }
+
+      try {
+        const res = await fetch(`${apiUrl}/clicks/increment-now`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ localHour: new Date().getHours(), localWeekday: new Date().getDay(), localMonth: new Date().getMonth(), isTrusted: false })
+        })
+        const payload = await res.json().catch(() => null)
+        if (res.status === 403 && payload?.error === 'verification_required') {
+          setVerificationSiteKey(payload.siteKey)
+          setHumanVerified(false)
+        } else {
+          // Already verified (IP recognized)
+          setHumanVerified(true)
+        }
+      } catch {
+        // Network error - let them through, backend will enforce anyway
+        setHumanVerified(true)
+      } finally {
+        setVerificationLoading(false)
+      }
+    }
+    checkVerification()
+  }, [apiUrl])
+
+  // Handle initial Turnstile verification
+  const handleInitialVerify = async (token) => {
+    try {
+      const res = await fetch(`${apiUrl}/verify-human`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turnstileToken: token })
+      })
+      if (res.ok) {
+        setHumanVerified(true)
+      }
+    } catch (err) {
+      console.error('Verification failed:', err)
+    }
+  }
 
   useEffect(() => {
     localStorage.setItem('myClicks', String(myClicks))
@@ -762,6 +824,13 @@ function App() {
           hourCount: payload.hourCount,
           sustainedActivity: payload.sustainedActivity 
         })
+        return
+      }
+
+      // Handle initial verification expired/missing
+      if (res.status === 403 && payload?.error === 'verification_required') {
+        setVerificationSiteKey(payload.siteKey)
+        setHumanVerified(false)
         return
       }
       
@@ -1247,6 +1316,22 @@ function App() {
 
   return (
     <>
+      {/* Initial human verification gate */}
+      {!verificationLoading && !humanVerified && verificationSiteKey && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal turnstile-modal" role="dialog" aria-modal="true" aria-labelledby="verification-title">
+            <h2 id="verification-title">Verify you&apos;re human</h2>
+            <p className="turnstile-info">Please complete the verification to start clicking.</p>
+            <Turnstile
+              siteKey={verificationSiteKey}
+              onVerify={handleInitialVerify}
+              onError={() => console.error('Turnstile error')}
+              onExpire={() => {}}
+            />
+          </div>
+        </div>
+      )}
+
       <InfoBox open={!infoDismissed} onClose={() => setInfoDismissed(true)}>
         Generate real time statistics globally by clicking the button. View charts of recent clicks, clicks by local hour, weekday, month, and country.
       </InfoBox>

@@ -197,9 +197,42 @@ app.UseRateLimiter();
 
 app.MapHub<ClickHub>("/hubs/clicks");
 
+app.MapPost("/verify-human", async (HttpContext http, TurnstileService turnstileService, ClickRateLimitService rateLimiter, IConfiguration config, VerifyHumanRequest req) =>
+{
+    var clientIp = GetClientKey(http);
+
+    // In development, skip Turnstile verification (test keys don't always work on localhost)
+    if (app.Environment.IsDevelopment())
+    {
+        rateLimiter.MarkVerified(clientIp);
+        return Results.Ok(new { verified = true });
+    }
+
+    if (string.IsNullOrWhiteSpace(req.TurnstileToken))
+        return Results.BadRequest(new { error = "missing_token" });
+
+    var isValid = await turnstileService.VerifyTokenAsync(req.TurnstileToken, clientIp);
+    if (!isValid)
+        return Results.Json(new { error = "verification_failed", message = "Turnstile verification failed. Please try again." }, statusCode: 403);
+
+    rateLimiter.MarkVerified(clientIp);
+    return Results.Ok(new { verified = true });
+});
+
 app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, IHubContext<ClickHub> hub, ClickRateLimitService rateLimiter, TurnstileService turnstileService, MailjetNotificationService mailjetNotificationService, IncrementNowRequestWithTurnstile req) =>
 {
     var clientIp = GetClientKey(http);
+
+    // Require initial human verification (skip in development)
+    if (!app.Environment.IsDevelopment() && !rateLimiter.IsVerified(clientIp))
+    {
+        return Results.Json(new
+        {
+            error = "verification_required",
+            message = "Please complete the initial verification to start clicking.",
+            siteKey = http.RequestServices.GetRequiredService<IConfiguration>()["Turnstile:SiteKey"] ?? ""
+        }, statusCode: 403);
+    }
 
     // Check for browser-like request (blocks simple HTTP clients like HttpClient, curl, etc.)
     var userAgent = http.Request.Headers.UserAgent.ToString();
