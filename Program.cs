@@ -277,6 +277,9 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     var secondIndex = DateTime.UtcNow.Second;
 
+    if (req.LocalHour < 0 || req.LocalHour > 23 || req.LocalWeekday is not (>= 0 and <= 6) || req.LocalMonth is not (>= 0 and <= 11))
+        return Results.BadRequest("Invalid timeframe");
+
     var country = http.Request.Headers["CF-IPCountry"].ToString();
     if (string.IsNullOrWhiteSpace(country) || country.Length != 2)
         country = "ZZ";
