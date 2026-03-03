@@ -277,7 +277,7 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
 
     var secondIndex = DateTime.UtcNow.Second;
 
-    if (req.LocalHour < 0 || req.LocalHour > 23 || req.LocalWeekday is not (>= 0 and <= 6) || req.LocalMonth is not (>= 0 and <= 11))
+    if (req.LocalHour is not (>= 0 and <= 23) || req.LocalWeekday is not (>= 0 and <= 6) || req.LocalMonth is not (>= 0 and <= 11))
         return Results.BadRequest("Invalid timeframe");
 
     var country = http.Request.Headers["CF-IPCountry"].ToString();
@@ -321,8 +321,8 @@ app.MapPost("/clicks/increment-now", async (HttpContext http, AppDbContext db, I
         second = new { index = secondIndex, count = secondCount },
         total = totalCount,
         localHour = new { index = req.LocalHour, count = localHourCount },
-        localWeekday = (req.LocalWeekday is int lwb) ? new { index = lwb, count = localWeekdayCount } : null, // this is the third time checking if it is an int... do we need that many checks? Can not somehow the first one be sufficient?
-        localMonth = (req.LocalMonth is int lmb) ? new { index = lmb, count = localMonthCount } : null,
+        localWeekday = new { index = req.LocalWeekday, count = localWeekdayCount },
+        localMonth = new { index = req.LocalMonth, count = localMonthCount },
         country = new { code = country, count = countryCount }
     });
 
